@@ -122,7 +122,18 @@ Das ist der technisch anspruchsvollste Teil, da AppKit dafür keine native API m
 - **`BooleanPath`** (Swift Package, `Kyome22/BooleanPath`): direkte Erweiterung von `NSBezierPath` um `.union()`, `.intersection()`, `.subtraction()`, `.difference()` — eine Swift-Neuauflage von Andy Finnells klassischer „VectorBoolean"-Bibliothek, speziell für macOS
 - **`iOverlay`** (`iShape-Swift/iOverlay`): moderneres, aktiv gepflegtes Package für Polygon-Boolesche-Operationen direkt auf `CGPath`-Basis, inklusive Umgang mit Löchern und Selbstüberschneidungen
 
-Empfehlung: mit `BooleanPath` starten (einfachere API, direkt auf `NSBezierPath`), bei Performance-/Robustheitsproblemen später auf `iOverlay` wechseln.
+**Empfehlung (aktualisiert nach Recherche, Sept. 2026): mit `iOverlay` starten**, nicht mit `BooleanPath`. Begründung:
+
+| | `BooleanPath` | `iOverlay` |
+|---|---|---|
+| Swift Package Manager | nicht dokumentiert (nur CocoaPods/Carthage) | nativ, direkt über Xcodes „Package Dependencies" |
+| Aktivität | 13 Commits, 17 Stars, wirkt eher klein/ruhend | 236 Commits, aktiv gepflegter Mono-Repo-Port aus `iShape-Rust` |
+| Selbstüberschneidungen & Löcher | in der Doku nicht erwähnt | explizit unterstützt — deckt genau die Robustheitsanforderung aus [Abschnitt 2.1](#21-stabilität--performance) ab |
+| API-Andockpunkt | erweitert `NSBezierPath` direkt | arbeitet mit `[CGPoint]`-Arrays, passt gut zum in [7.2](#72-rendering) beschriebenen Fluss „internes Modell → `CGPath` pro Frame" |
+
+Einziger Nachteil: keine `NSBezierPath`-Extension-Syntax, d. h. eine dünne Adapterschicht zwischen dem internen Anker-/Kontrollpunkt-Modell und `iOverlay`s `[CGPoint]`-Format ist nötig — überschaubarer Aufwand gegenüber dem Robustheitsgewinn.
+
+Quellen: [Kyome22/BooleanPath](https://github.com/Kyome22/BooleanPath), [iShape-Swift/iOverlay](https://github.com/iShape-Swift/iOverlay), [iOverlay auf Swift Package Index](https://swiftpackageindex.com/iShape-Swift/iOverlay).
 
 ### 7.4 Text
 - **Core Text** für Rendering und Messung
@@ -175,4 +186,4 @@ Icon-Set-Export mit mehreren Grössen gleichzeitig, Tastenkürzel, ggf. iPad-Ver
 - ~~Name der App~~ → entschieden: **Sceau**
 - Vertrieb: Mac App Store vs. eigenständig
 - Preismodell
-- Ob `BooleanPath` für den Start ausreicht oder gleich `iOverlay` sinnvoller ist (am besten früh mit ein paar komplexeren Testformen ausprobieren)
+- ~~Ob `BooleanPath` für den Start ausreicht oder gleich `iOverlay` sinnvoller ist~~ → entschieden (siehe [7.3](#73-boolesche-operationen--konkrete-umsetzung)): **`iOverlay`**, wegen SPM-Support, aktiverer Pflege und expliziter Selbstüberschneidungs-/Löcher-Behandlung. Trotzdem früh mit ein paar komplexeren Testformen verifizieren, bevor sich die Integration verfestigt.
