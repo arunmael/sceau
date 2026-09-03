@@ -136,6 +136,12 @@ Kurvengriffe statt der Skaliergriffe. `VectorPath.movingHandle(_:at:to:)` hält
 dabei die Regeln aus `AnchorStyle` ein — bei `.symmetric` wird der Gegengriff
 gespiegelt, bei `.smooth` nur mitgedreht, bei `.corner` bleibt er unberührt.
 
+Ein Klick auf die Kontur fügt dort einen Anker ein, ein Wahlklick auf einen
+Anker entfernt ihn. Eingefügt wird über eine echte De-Casteljau-Teilung des
+Segments: Sie liefert die neuen Kontrollpunkte gleich mit, sodass sich die Form
+dabei **nicht** verändert — ein blosses Einhängen des Kurvenpunkts würde sie
+verziehen.
+
 ## Absturzerfassung
 
 Über `MetricKit` statt eines eigenen Absturzfängers, der dem System nur in die
@@ -146,12 +152,55 @@ innerhalb des Sandbox-Containers.
 Vertriebsweg entschieden ist; bis dahin sind die lokalen Dateien der Weg, um
 nach einem Absturz nachzusehen.
 
+## Zwischenablage
+
+Kopieren, Einsetzen und Duplizieren nutzen einen **eigenen** Zwischenablagetyp
+(`ch.arunmeyer.sceau.nodes`) mit den Knoten als JSON — nicht etwa SVG. Beim
+Zurücklesen soll exakt dasselbe Modell entstehen, das kopiert wurde:
+parametrische Formen bleiben parametrisch, Gruppen bleiben Gruppen. Ein Umweg
+über ein Austauschformat verlöre genau das.
+
+Eingesetzte Knoten bekommen über `Node.duplicated()` durchgehend **neue**
+Kennungen, bis in die Tiefe. Bliebe auch nur ein Kind bei seiner alten, hielten
+Auswahl und Undo Kopie und Original für dasselbe Objekt — ein Fehler, der erst
+viel später und dann sehr verwirrend auffällt.
+
+Duplizieren (⌘D) geht bewusst **nicht** über die Zwischenablage: Wer etwas
+dupliziert, will dabei nicht seinen Zwischenablageinhalt verlieren.
+
+## Wo getestet wird — und warum nicht in der App
+
+Sämtliche Logik wird über `swift test` im Paket geprüft, **nicht** über ein
+Unit-Test-Ziel im Xcode-Projekt.
+
+Ein solches Ziel gab es kurzzeitig. Es startet die App als Test-Host, und
+dieser Aufbau erzeugte reproduzierbar Abstürze im Swift-Laufzeitsystem
+(`swift_task_isMainExecutorImpl` → `EXC_BAD_ACCESS`) — jedes Mal beim
+Einschleusen des Testbundles, nie beim normalen Start der App. Statt diesem
+Aufbau hinterherzujagen, wanderte das, was geprüft werden muss, dorthin, wo es
+ohne laufende App prüfbar ist.
+
+Deshalb liegen `DocumentStore` und `ToolKind` im Paket, obwohl sie
+Programmzustand halten: Beide brauchen kein AppKit — `UndoManager` ist
+Foundation —, und ausgerechnet Undo darf nicht ungetestet bleiben, weil ein
+Fehler dort Arbeit vernichtet. Der Testlauf dauert dadurch Millisekunden statt
+Minuten.
+
+**Bewusst nicht abgedeckt:** die dünne `NSPasteboard`-Schicht in
+`ClipboardCommands`. Was darunter liegt — JSON-Rundreise, neue Kennungen,
+Versatz beim Einsetzen — ist im Paket geprüft.
+
+### Undo-Gruppen
+`UndoManager` verlangt eine offene Gruppe, sonst wirft er beim Registrieren.
+Im laufenden Programm öffnet AppKit sie pro Durchlauf der Ereignisschleife
+selbst; ausserhalb davon gibt es keine. `DocumentStore` öffnet deshalb nur dann
+eine eigene, wenn `groupingLevel == 0` ist — das Verhalten im Programm bleibt
+damit unverändert, und der Store funktioniert trotzdem ohne Ereignisschleife.
+
 ## Offene Punkte
 
 - Kurven-Refitting nach booleschen Operationen
-- Zusammenfassen von Undo-Schritten beim Ziehen an Reglern im Inspektor
 - Versand der Diagnoseberichte (siehe oben)
-- Der Zeichenstift kann bestehende Pfade bearbeiten, aber noch keine Anker
-  hinzufügen oder entfernen
 - Verläufe werden im Inspektor bearbeitet, aber nicht direkt auf der
   Zeichenfläche
+- Die `NSPasteboard`-Schicht ist ungetestet (siehe oben)
