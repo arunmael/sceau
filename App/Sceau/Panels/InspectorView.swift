@@ -317,6 +317,13 @@ private struct TextSection: View {
     let spec: TextSpec
 
     var body: some View {
+        Section("Text") {
+            // Mehrzeilig, damit auch eine zweizeilige Wortmarke eingebbar
+            // bleibt; Absatzformatierung bleibt aussen vor.
+            TextField("Text", text: stringBinding, axis: .vertical)
+                .lineLimit(1...4)
+        }
+
         Section("Schrift") {
             LabeledContent("Schrift") { TextField("Schrift", text: fontNameBinding) }
             LabeledContent("Grösse") { TextField("Grösse", value: fontSizeBinding, format: .number).frame(width: 60) }
@@ -332,6 +339,10 @@ private struct TextSection: View {
         updatedNode.content = .text(updatedSpec)
         guard updatedNode != node else { return }
         store.apply(actionName) { $0.replace(updatedNode) }
+    }
+
+    private var stringBinding: Binding<String> {
+        Binding(get: { spec.string }, set: { newValue in update("Text ändern") { $0.string = newValue } })
     }
 
     private var fontNameBinding: Binding<String> {
