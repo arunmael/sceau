@@ -6,8 +6,12 @@ Formen zuerst, Pfade zweitrangig. Ein Fenster, ein Fokus. Sofort exportierbar.
 
 ## Status
 
-Lauffähiger Stand: Die App startet, zeichnet, verknüpft Formen boolesch und
-exportiert nach SVG, PDF und PNG.
+Der Funktionsumfang aus Abschnitt 5 des Entwicklungsplans ist umgesetzt:
+Grundformen, Zeichenstift samt Ankerbearbeitung, die vier
+Pathfinder-Operationen, Farbe/Kontur/Verläufe, Ebenen und Gruppen,
+Ausrichten/Verteilen/Spiegeln/Einrasten, Text mitsamt Umwandlung in Pfade,
+Zeichenfläche mit Vorgabegrössen sowie Export nach SVG, PDF und PNG samt
+Icon-Satz.
 
 Der vollständige Entwicklungsplan (Vision, Feature-Set, Roadmap) liegt in
 [`docs/entwicklungsplan.md`](docs/entwicklungsplan.md), die beim Bauen
@@ -48,6 +52,22 @@ Die Kernlogik ohne Xcode testen:
 ```bash
 swift test
 ```
+
+Es gibt bewusst **kein** Test-Ziel im Xcode-Projekt; die Gründe stehen in
+[`docs/architektur.md`](docs/architektur.md).
+
+## Das App-Icon
+
+Das Programmsymbol ist selbst ein Sceau-Dokument
+([`Design/AppIcon.sceau`](Design/AppIcon.sceau)) und wird mit Sceau' eigener
+Exportstrecke erzeugt — es lässt sich also in der App öffnen und ändern:
+
+```bash
+swift run sceau-icon .
+```
+
+Damit ist es reproduzierbar und zugleich ein laufender Praxistest von
+Grundformen, boolescher Verknüpfung, Verlauf und Rasterexport.
 
 ## Lizenz
 
