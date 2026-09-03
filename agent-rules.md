@@ -43,3 +43,29 @@ Sondern: Test schreiben (rot) → Code schreiben, bis der Test grün ist → lau
 - Ergebnisse ehrlich berichten: Wenn ein Test fehlschlägt oder ein Schritt übersprungen wurde, das klar sagen statt zu beschönigen.
 - Bei architektonischen oder Scope-Fragen aktiv nachfragen statt anzunehmen.
 - Deutsch als Projektsprache für Dokumentation/Kommunikation beibehalten (README ist auf Deutsch verfasst).
+
+## 7. Delegation an Codex (Credits sparen)
+
+Ein MCP-Server `codex` steht bereit (lokal installierte OpenAI Codex CLI, eingeloggt via ChatGPT-Abo,
+nicht über Claude-Credits abgerechnet). Er stellt einen vollwertigen Coding-Agenten mit Datei-/Shell-
+Zugriff bereit, der Aufgaben in einem eigenen Working Directory bearbeitet.
+
+Das passt direkt in Regel 1 (Test-first): Der fehlschlagende Test wird weiterhin zuerst und selbst
+geschrieben — das ist die eigentliche Entwurfsentscheidung und bleibt bei mir. Erst danach kann die
+Implementierung, die den Test grün bekommen soll, an Codex delegiert werden, statt sie selbst zu
+schreiben.
+
+**Wann delegieren (Default, nicht optional):** Standard-/Boilerplate-Implementierung mit bereits
+geschriebenem Test und klarer Erwartung — CRUD-Code, Wiederholungen über mehrere Dateien,
+Export-Konvertierungs-Boilerplate, Refactorings nach festem Muster. Kommentarlos selbst schreiben ist
+keine gültige Option, wenn die Aufgabe darauf passt — Abweichung braucht eine kurze Begründung.
+
+**Wann NICHT delegieren:** Architekturrelevante Entscheidungen (Datenmodell für Pfade/Ebenen,
+Export-Pipeline, s. Regel 2), Kernlogik der Vektor-Pfad-Berechnung/Boolean-Operationen, alles mit
+Rundungs-/Edge-Case-Risiko, das laut Regel 1 besondere Sorgfalt braucht, oder wo Kontext aus dem
+Gespräch nötig ist, den Codex nicht hat. Im Zweifel selbst machen.
+
+**Ablauf:** Test selbst schreiben → präzisen Sub-Auftrag an das `codex`-Tool (Zieldatei, Signaturen,
+der Test, gegen den es laufen soll) → Ergebnis selbst prüfen (Diff lesen, Test tatsächlich ausführen,
+nicht nur der Meldung von Codex glauben) → gemäss Regel 5 in kleinen Schritten berichten, was geändert
+und wie verifiziert wurde.
