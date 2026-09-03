@@ -38,7 +38,7 @@ enum ResizeHandle: CaseIterable {
 /// dieselbe Richtung haben wie das Dokumentmodell und SVG: Ursprung links oben,
 /// y nach unten. Das ist die einzige Stelle im Programm, die diese Umkehrung
 /// vornimmt.
-final class CanvasView: NSView {
+final class CanvasView: NSView, NSUserInterfaceValidations {
 
     private let store: DocumentStore
 
@@ -235,6 +235,10 @@ final class CanvasView: NSView {
         background.shadowOffset = CGSize(width: 0, height: 2)
         contentLayer.addSublayer(background)
 
+        if store.showsGrid, let grid = makeGridLayer(in: artboardRect) {
+            contentLayer.addSublayer(grid)
+        }
+
         // Der Inhalt lebt in Dokumentkoordinaten; Zoom und Verschiebung machen
         // eine einzige Transformation auf dem Container, statt jede Form einzeln
         // umzurechnen.
@@ -254,6 +258,42 @@ final class CanvasView: NSView {
             }
         }
         contentLayer.addSublayer(nodesLayer)
+    }
+
+    /// Zeichnet das Raster innerhalb der Zeichenfläche.
+    ///
+    /// Nur dort, nicht über die ganze Ansicht: Das Raster ist eine Eigenschaft
+    /// des Dokuments, und ausserhalb der Zeichenfläche gibt es nichts
+    /// auszurichten.
+    private func makeGridLayer(in artboardRect: CGRect) -> CALayer? {
+        let spacing = store.gridSize * zoom
+        // Bei zu dichten Linien wäre das Raster nur noch eine graue Fläche.
+        guard spacing >= 4 else { return nil }
+
+        let path = CGMutablePath()
+        var x = artboardRect.minX
+        while x <= artboardRect.maxX {
+            path.move(to: CGPoint(x: x, y: artboardRect.minY))
+            path.addLine(to: CGPoint(x: x, y: artboardRect.maxY))
+            x += spacing
+        }
+        var y = artboardRect.minY
+        while y <= artboardRect.maxY {
+            path.move(to: CGPoint(x: artboardRect.minX, y: y))
+            path.addLine(to: CGPoint(x: artboardRect.maxX, y: y))
+            y += spacing
+        }
+
+        let layer = CAShapeLayer()
+        layer.path = path
+        layer.strokeColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
+        layer.lineWidth = 1 / max(1, backingScaleFactor)
+        layer.fillColor = nil
+        return layer
+    }
+
+    private var backingScaleFactor: CGFloat {
+        window?.backingScaleFactor ?? 2
     }
 
     private func rebuildOverlay() {
@@ -481,7 +521,9 @@ final class CanvasView: NSView {
         let docPoint = documentPoint(from: viewPoint)
 
         if store.activeTool == .pen {
-            handlePenMouseDown(at: docPoint)
+            // Wahltaste entfernt statt einzufügen — dieselbe Belegung wie in
+            // gängigen Vektorprogrammen.
+            handlePenMouseDown(at: docPoint, removing: event.modifierFlags.contains(.option))
             return
         }
 
@@ -684,9 +726,10 @@ final class CanvasView: NSView {
     /// ``SnapSettings``: Die Zeichenfläche bleibt dort bewusst immer ein Ziel,
     /// und genau die soll bei gedrückter Befehlstaste ebenfalls nicht fangen.
     private func snapSettings(_ event: NSEvent) -> SnapSettings? {
-        guard !event.modifierFlags.contains(.command) else { return nil }
+        guard store.snapsEnabled, !event.modifierFlags.contains(.command) else { return nil }
 
         var settings = SnapSettings()
+        settings.gridSize = store.showsGrid ? store.gridSize : nil
         // Die Fangweite gilt in Dokumentpunkten; ohne Umrechnung würde sie
         // beim Hineinzoomen unbrauchbar gross.
         settings.threshold /= zoom
@@ -710,7 +753,7 @@ final class CanvasView: NSView {
         Self.handleScreenSize / zoom
     }
 
-    private func handlePenMouseDown(at point: CGPoint) {
+    private func handlePenMouseDown(at point: CGPoint, removing: Bool) {
         // Bei einem bereits ausgewählten Pfad greift der Zeichenstift dessen
         // Anker und Griffe ab — das ist die Nachbearbeitung aus Abschnitt 5.2
         // des Entwicklungsplans.
@@ -718,10 +761,23 @@ final class CanvasView: NSView {
            let nodeID = store.selection.first,
            store.selection.count == 1,
            let node = store.document.node(id: nodeID),
-           case let .path(path) = node.content,
-           let hit = path.hitTestAnchor(at: point, tolerance: anchorTolerance) {
-            interaction = .editingAnchor(node: nodeID, address: hit.address, handle: hit.handle)
-            return
+           case let .path(path) = node.content {
+
+            if let hit = path.hitTestAnchor(at: point, tolerance: anchorTolerance) {
+                if removing, hit.handle == .point {
+                    removeAnchor(at: hit.address, of: nodeID, in: path)
+                } else {
+                    interaction = .editingAnchor(node: nodeID, address: hit.address, handle: hit.handle)
+                }
+                return
+            }
+
+            // Kein Anker getroffen, aber die Kontur — dann wird dort einer
+            // eingefügt, ohne die Form zu verändern.
+            if !removing, let segment = path.closestSegment(to: point, tolerance: anchorTolerance) {
+                insertAnchor(at: segment.address, t: segment.t, of: nodeID, in: path)
+                return
+            }
         }
 
         // Zurück auf den Anfangspunkt schliesst den Pfad.
@@ -733,6 +789,33 @@ final class CanvasView: NSView {
         penDraft.addAnchor(at: point)
         interaction = .penHandle
         rebuildOverlayAnimated()
+    }
+
+    private func insertAnchor(at address: AnchorAddress, t: CGFloat, of nodeID: UUID, in path: VectorPath) {
+        let expanded = path.insertingAnchor(at: address, t: t)
+        store.apply("Ankerpunkt einfügen") { document in
+            guard var node = document.node(id: nodeID) else { return }
+            node.content = .path(expanded)
+            document.replace(node)
+        }
+
+        // Direkt weiterziehen können, ohne noch einmal zielen zu müssen.
+        interaction = .editingAnchor(
+            node: nodeID,
+            address: AnchorAddress(subpath: address.subpath, index: address.index + 1),
+            handle: .point
+        )
+    }
+
+    private func removeAnchor(at address: AnchorAddress, of nodeID: UUID, in path: VectorPath) {
+        let reduced = path.removingAnchor(at: address)
+        guard reduced != path else { return }
+
+        store.apply("Ankerpunkt entfernen") { document in
+            guard var node = document.node(id: nodeID) else { return }
+            node.content = .path(reduced)
+            document.replace(node)
+        }
     }
 
     /// Schliesst den gezeichneten Pfad ab und legt ihn als Knoten an.
@@ -875,6 +958,46 @@ final class CanvasView: NSView {
 
     override func selectAll(_ sender: Any?) {
         store.selectAll()
+    }
+
+    // MARK: - Bearbeiten-Menü
+    //
+    // Diese Befehle laufen über die Responder-Kette. Liegt der Tastaturfokus
+    // dagegen in einem Textfeld der Paletten, greifen dort die üblichen
+    // Textbefehle — genau wie erwartet.
+
+    @objc func copy(_ sender: Any?) {
+        ClipboardCommands.copy(from: store)
+    }
+
+    @objc func cut(_ sender: Any?) {
+        ClipboardCommands.cut(from: store)
+    }
+
+    @objc func paste(_ sender: Any?) {
+        ClipboardCommands.paste(into: store)
+    }
+
+    @objc func duplicate(_ sender: Any?) {
+        ClipboardCommands.duplicate(in: store)
+    }
+
+    @objc func delete(_ sender: Any?) {
+        deleteSelection()
+    }
+
+    func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        switch item.action {
+        case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)):
+            return !store.selection.isEmpty
+        case #selector(paste(_:)):
+            return ClipboardCommands.canPaste()
+        case #selector(selectAll(_:)):
+            return !store.document.nodes.isEmpty
+        default:
+            // Alles Übrige entscheidet die Responder-Kette weiter oben.
+            return true
+        }
     }
 
     // MARK: - Zoom

@@ -197,10 +197,17 @@ private struct SingleNodeInspector: View {
             let maxRadius = max(1, min(frame.width, frame.height) / 2)
             Section("Rechteck") {
                 LabeledContent("Eckradius") {
-                    // TODO: Zugbewegungen am Slider sollen später zu einem einzigen
-                    // Undo-Schritt zusammengefasst werden statt pro Schritt einen
-                    // eigenen Eintrag zu erzeugen.
-                    Slider(value: cornerRadiusBinding(current: cornerRadius, max: maxRadius), in: 0...maxRadius)
+                    Slider(
+                        value: cornerRadiusBinding(current: cornerRadius, max: maxRadius),
+                        in: 0...maxRadius,
+                        onEditingChanged: { editing in
+                            if editing {
+                                store.beginCoalescing("Eckradius ändern")
+                            } else {
+                                store.endCoalescing()
+                            }
+                        }
+                    )
                     TextField("Eckradius", value: cornerRadiusBinding(current: cornerRadius, max: maxRadius), format: .number)
                         .frame(width: 50)
                 }
@@ -215,9 +222,17 @@ private struct SingleNodeInspector: View {
             Section("Stern") {
                 Stepper("Zacken: \(points)", value: pointsBinding(current: points), in: 3...24)
                 LabeledContent("Zackentiefe") {
-                    // TODO: Zugbewegungen am Slider sollen später zu einem einzigen
-                    // Undo-Schritt zusammengefasst werden.
-                    Slider(value: innerRatioBinding(current: innerRatio), in: 0.05...0.95)
+                    Slider(
+                        value: innerRatioBinding(current: innerRatio),
+                        in: 0.05...0.95,
+                        onEditingChanged: { editing in
+                            if editing {
+                                store.beginCoalescing("Zackentiefe ändern")
+                            } else {
+                                store.endCoalescing()
+                            }
+                        }
+                    )
                 }
             }
 
@@ -390,7 +405,7 @@ private struct FillSection: View {
                 case let .solid(color):
                     solidControls(color)
                 case let .linearGradient(gradient), let .radialGradient(gradient):
-                    GradientStopsEditor(gradient: gradient) { updated in
+                    GradientStopsEditor(gradient: gradient, store: store) { updated in
                         apply(makePaint(likeCurrent: current, gradient: updated))
                     }
                 }
@@ -485,6 +500,7 @@ private enum FillKind: Hashable {
 /// müssen.
 private struct GradientStopsEditor: View {
     let gradient: SceauCore.Gradient
+    let store: DocumentStore
     let onChange: (SceauCore.Gradient) -> Void
 
     var body: some View {
@@ -493,9 +509,17 @@ private struct GradientStopsEditor: View {
                 ColorPicker("", selection: colorBinding(index), supportsOpacity: true)
                     .labelsHidden()
 
-                // TODO: Zugbewegungen am Slider sollen später zu einem einzigen
-                // Undo-Schritt zusammengefasst werden.
-                Slider(value: locationBinding(index), in: 0...1)
+                Slider(
+                    value: locationBinding(index),
+                    in: 0...1,
+                    onEditingChanged: { editing in
+                        if editing {
+                            store.beginCoalescing("Verlauf ändern")
+                        } else {
+                            store.endCoalescing()
+                        }
+                    }
+                )
 
                 Text("\(Int((stop(index)?.location ?? 0) * 100)) %")
                     .foregroundStyle(.secondary)
@@ -705,10 +729,17 @@ private struct OpacitySection: View {
 
     var body: some View {
         Section("Deckkraft") {
-            // TODO: Zugbewegungen am Slider sollen später zu einem einzigen
-            // Undo-Schritt zusammengefasst werden statt pro Zwischenwert einen
-            // eigenen Eintrag zu erzeugen.
-            Slider(value: binding, in: 0...1)
+            Slider(
+                value: binding,
+                in: 0...1,
+                onEditingChanged: { editing in
+                    if editing {
+                        store.beginCoalescing("Deckkraft ändern")
+                    } else {
+                        store.endCoalescing()
+                    }
+                }
+            )
             if current == nil {
                 Text("Gemischt").font(.caption).foregroundStyle(.secondary)
             }

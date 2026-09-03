@@ -102,7 +102,8 @@ enum MainMenuBuilder {
         menu.addItem(item("Ausschneiden", #selector(NSText.cut(_:)), "x"))
         menu.addItem(item("Kopieren", #selector(NSText.copy(_:)), "c"))
         menu.addItem(item("Einsetzen", #selector(NSText.paste(_:)), "v"))
-        menu.addItem(item("Löschen", #selector(NSText.delete(_:)), "\u{8}", modifiers: []))
+        menu.addItem(item("Duplizieren", Selector(("duplicate:")), "d"))
+        menu.addItem(item("Löschen", Selector(("delete:")), "\u{8}", modifiers: []))
         menu.addItem(.separator())
         menu.addItem(item("Alles auswählen", #selector(NSText.selectAll(_:)), "a"))
         return menu
@@ -146,7 +147,12 @@ enum MainMenuBuilder {
 
     private static func viewMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.addItem(item("Vergrössern", #selector(DocumentWindowController.zoomIn(_:)), "+"))
+        menu.addItem(item("Verkleinern", #selector(DocumentWindowController.zoomOut(_:)), "-"))
         menu.addItem(item("Originalgrösse", #selector(DocumentWindowController.zoomToFit(_:)), "0"))
+        menu.addItem(.separator())
+        menu.addItem(item("Raster einblenden", #selector(DocumentWindowController.toggleGrid(_:)), "'"))
+        menu.addItem(item("Am Raster ausrichten", #selector(DocumentWindowController.toggleSnapping(_:)), "'", modifiers: [.command, .shift]))
         menu.addItem(.separator())
         menu.addItem(item("Vollbild", #selector(NSWindow.toggleFullScreen(_:)), "f", modifiers: [.command, .control]))
         return menu

@@ -6,7 +6,7 @@ import SceauCore
 ///
 /// Der Aufbau folgt dem Grundsatz „ein Fenster, ein Fokus" aus dem
 /// Entwicklungsplan — es gibt bewusst keine frei schwebenden Paletten.
-final class DocumentWindowController: NSWindowController {
+final class DocumentWindowController: NSWindowController, NSUserInterfaceValidations {
 
     private let store: DocumentStore
     private var canvasView: CanvasView?
@@ -213,6 +213,43 @@ final class DocumentWindowController: NSWindowController {
     @objc func zoomToFit(_ sender: Any?) {
         store.zoom = 1
         canvasView?.centerArtboard()
+    }
+
+    @objc func zoomIn(_ sender: Any?) {
+        setZoom(store.zoom * 1.25)
+    }
+
+    @objc func zoomOut(_ sender: Any?) {
+        setZoom(store.zoom / 1.25)
+    }
+
+    private func setZoom(_ value: CGFloat) {
+        store.zoom = min(64, max(0.05, value))
+        canvasView?.centerArtboard()
+    }
+
+    @objc func toggleGrid(_ sender: Any?) {
+        store.showsGrid.toggle()
+        canvasView?.refresh()
+    }
+
+    @objc func toggleSnapping(_ sender: Any?) {
+        store.snapsEnabled.toggle()
+    }
+
+    func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        // Häkchen an den beiden Umschaltern, damit ihr Zustand ablesbar ist.
+        if let menuItem = item as? NSMenuItem {
+            switch item.action {
+            case #selector(toggleGrid(_:)):
+                menuItem.state = store.showsGrid ? .on : .off
+            case #selector(toggleSnapping(_:)):
+                menuItem.state = store.snapsEnabled ? .on : .off
+            default:
+                break
+            }
+        }
+        return true
     }
 }
 
