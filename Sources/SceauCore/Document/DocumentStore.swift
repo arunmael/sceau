@@ -1,9 +1,9 @@
-import AppKit
+import CoreGraphics
+import Foundation
 import Observation
-import SceauCore
 
 /// Das aktive Werkzeug der Werkzeugleiste.
-enum ToolKind: String, CaseIterable, Identifiable {
+public enum ToolKind: String, CaseIterable, Identifiable {
     case select
     case rectangle
     case ellipse
@@ -12,9 +12,9 @@ enum ToolKind: String, CaseIterable, Identifiable {
     case pen
     case text
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .select: return "Auswählen"
         case .rectangle: return "Rechteck"
@@ -26,7 +26,7 @@ enum ToolKind: String, CaseIterable, Identifiable {
         }
     }
 
-    var symbolName: String {
+    public var symbolName: String {
         switch self {
         case .select: return "cursorarrow"
         case .rectangle: return "rectangle"
@@ -39,7 +39,7 @@ enum ToolKind: String, CaseIterable, Identifiable {
     }
 
     /// Werkzeuge, die durch Aufziehen eine neue Grundform erzeugen.
-    var createsShape: Bool {
+    public var createsShape: Bool {
         switch self {
         case .rectangle, .ellipse, .polygon, .star: return true
         case .select, .pen, .text: return false
@@ -63,29 +63,43 @@ enum ToolKind: String, CaseIterable, Identifiable {
 /// den Speicher.
 @MainActor
 @Observable
-final class DocumentStore {
+public final class DocumentStore {
     /// Das Dokumentmodell. Änderungen laufen ausschliesslich über ``apply(_:_:)``,
     /// damit kein Schritt ohne Undo-Eintrag passiert.
-    private(set) var document: Document
+    public private(set) var document: Document
 
     /// IDs der ausgewählten Knoten.
-    var selection: Set<UUID> = []
+    public var selection: Set<UUID> = []
 
     /// Aktives Werkzeug.
-    var activeTool: ToolKind = .select
+    public var activeTool: ToolKind = .select
 
     /// Zoomfaktor der Ansicht (1 = 100 %). Gehört zum Ansichtszustand, nicht
     /// zum Dokument, und wird deshalb nicht mitgespeichert.
-    var zoom: CGFloat = 1
+    public var zoom: CGFloat = 1
+
+    /// Ob das Raster gezeichnet wird.
+    public var showsGrid = false
+
+    /// Rasterweite in Dokumentpunkten.
+    public var gridSize: CGFloat = 8
+
+    /// Ob überhaupt eingerastet wird. Die Befehlstaste hebelt das zusätzlich
+    /// für einen einzelnen Zug aus.
+    public var snapsEnabled = true
 
     /// Der Undo-Manager des zugehörigen `NSDocument`.
-    weak var undoManager: UndoManager?
+    public weak var undoManager: UndoManager?
 
     /// Wird nach jeder Änderung aufgerufen, damit das `NSDocument` sich als
     /// geändert markieren und den Autosave anstossen kann.
-    var didChange: (@MainActor () -> Void)?
+    public var didChange: (@MainActor () -> Void)?
 
-    init(document: Document) {
+    /// Läuft gerade eine zusammengefasste Änderungsfolge, steht hier ihr Name
+    /// und der Stand, auf den ein Widerrufen zurückführen soll.
+    private var coalescing: (name: String, baseline: Document)?
+
+    public init(document: Document) {
         self.document = document
     }
 
@@ -97,7 +111,7 @@ final class DocumentStore {
     ///   - actionName: Menütext für „Widerrufen …", auf Deutsch und in der
     ///     Grundform, z. B. „Form bewegen".
     ///   - mutate: Die Änderung am Modell.
-    func apply(_ actionName: String, _ mutate: (inout Document) -> Void) {
+    public func apply(_ actionName: String, _ mutate: (inout Document) -> Void) {
         let before = document
         var draft = document
         mutate(&draft)
@@ -106,9 +120,42 @@ final class DocumentStore {
         // sonst sammelt sich beim blossen Anklicken von Objekten Leerlauf an.
         guard draft != before else { return }
 
+        // Innerhalb einer zusammengefassten Folge wird ohne Undo geschrieben;
+        // der eine Schritt entsteht erst beim Abschluss.
+        guard coalescing == nil else {
+            document = draft
+            didChange?()
+            return
+        }
+
         document = draft
         registerUndo(restoring: before, actionName: actionName)
         didChange?()
+    }
+
+    /// Beginnt eine zusammengefasste Änderungsfolge.
+    ///
+    /// Gedacht für Zugbewegungen an Reglern: Ohne das ergäbe jeder
+    /// Zwischenwert einen eigenen Undo-Schritt, und ein einziges Ziehen am
+    /// Deckkraftregler würde die gesamte Widerrufsliste fluten. Zu jedem
+    /// Aufruf gehört genau ein ``endCoalescing()``.
+    public func beginCoalescing(_ actionName: String) {
+        guard coalescing == nil else { return }
+        coalescing = (actionName, document)
+    }
+
+    /// Schliesst die Folge ab und schreibt sie als **einen** Undo-Schritt fest.
+    public func endCoalescing() {
+        guard let session = coalescing else { return }
+        coalescing = nil
+
+        let result = document
+        guard result != session.baseline else { return }
+
+        // Kurz auf den Ausgangsstand zurück, damit `apply` den Schritt sauber
+        // gegen die richtige Grundlage registriert.
+        document = session.baseline
+        apply(session.name) { $0 = result }
     }
 
     /// Schreibt das Modell **ohne** Undo-Eintrag.
@@ -117,7 +164,7 @@ final class DocumentStore {
     /// würde jeder Mausschritt sonst einen eigenen Undo-Eintrag erzeugen. Der
     /// Aufrufer ist dafür verantwortlich, am Ende genau einen Schritt über
     /// ``apply(_:_:)`` festzuschreiben.
-    func setDocumentWithoutUndo(_ newValue: Document) {
+    public func setDocumentWithoutUndo(_ newValue: Document) {
         guard newValue != document else { return }
         document = newValue
         didChange?()
@@ -125,6 +172,17 @@ final class DocumentStore {
 
     private func registerUndo(restoring snapshot: Document, actionName: String) {
         guard let undoManager else { return }
+
+        // `UndoManager` verlangt eine offene Gruppe, sonst wirft er beim
+        // Registrieren. Im laufenden Programm öffnet AppKit sie pro Durchlauf
+        // der Ereignisschleife selbst; ausserhalb davon — etwa in Tests —
+        // gibt es keine. Deshalb wird nur dann eine eigene Gruppe geöffnet,
+        // wenn tatsächlich keine offen ist: So bleibt das Verhalten im
+        // Programm unverändert, und der Store funktioniert trotzdem ohne
+        // Ereignisschleife.
+        let needsOwnGroup = undoManager.groupingLevel == 0
+        if needsOwnGroup { undoManager.beginUndoGrouping() }
+        defer { if needsOwnGroup { undoManager.endUndoGrouping() } }
 
         undoManager.registerUndo(withTarget: self) { store in
             // Der Handler wird von AppKit auf dem Hauptthread aufgerufen; das
@@ -149,11 +207,11 @@ final class DocumentStore {
 
     // MARK: - Auswahl
 
-    var selectedNodes: [Node] {
+    public var selectedNodes: [Node] {
         document.nodes.filter { selection.contains($0.id) }
     }
 
-    func select(_ id: UUID, extending: Bool) {
+    public func select(_ id: UUID, extending: Bool) {
         if extending {
             if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
         } else {
@@ -161,19 +219,11 @@ final class DocumentStore {
         }
     }
 
-    func selectAll() {
+    public func selectAll() {
         selection = Set(document.nodes.map(\.id))
     }
 
-    func clearSelection() {
+    public func clearSelection() {
         selection.removeAll()
-    }
-}
-
-extension Node {
-    /// Die eigene ID sowie die aller Nachfahren.
-    var flattenedIDs: [UUID] {
-        guard let children else { return [id] }
-        return [id] + children.flatMap(\.flattenedIDs)
     }
 }
