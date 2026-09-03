@@ -95,10 +95,11 @@ final class CanvasView: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
-        // Kindebenen sollen dieselbe Achsenrichtung haben wie die umgedrehte
-        // View, sonst stünde alles Gezeichnete auf dem Kopf.
-        contentLayer.isGeometryFlipped = true
-        overlayLayer.isGeometryFlipped = true
+        // Bewusst **kein** `isGeometryFlipped` auf diesen Ebenen: AppKit dreht
+        // die Trägerebene einer umgedrehten View bereits selbst, sodass
+        // Kindebenen schon in Dokumentrichtung liegen (Ursprung links oben).
+        // Es zusätzlich zu setzen kehrt die Achse ein zweites Mal um und
+        // stellt den gesamten Inhalt auf den Kopf.
         layer?.addSublayer(contentLayer)
         layer?.addSublayer(overlayLayer)
 
