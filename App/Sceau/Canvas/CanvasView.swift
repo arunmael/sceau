@@ -300,11 +300,23 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         overlayLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
         overlayLayer.frame = bounds
 
+        // Beide Eckpunkte liegen in Dokumentkoordinaten, `addOutline` zeichnet
+        // dagegen in View-Koordinaten — ohne die Umrechnung sässe die Vorschau
+        // um den Betrag des Dokumentursprungs daneben.
         switch interaction {
         case let .creating(origin, current):
-            addOutline(rect: CGRect(from: origin, to: current), color: .controlAccentColor, dashed: true)
+            addOutline(
+                rect: viewRect(from: CGRect(from: origin, to: current)),
+                color: .controlAccentColor,
+                dashed: true
+            )
         case let .marquee(origin, current):
-            addOutline(rect: CGRect(from: origin, to: current), color: .controlAccentColor, dashed: true, filled: true)
+            addOutline(
+                rect: viewRect(from: CGRect(from: origin, to: current)),
+                color: .controlAccentColor,
+                dashed: true,
+                filled: true
+            )
         default:
             break
         }
