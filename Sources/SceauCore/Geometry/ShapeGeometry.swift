@@ -16,12 +16,17 @@ public enum ShapeGeometry {
     /// Löst eine parametrische Grundform in ihre Pfaddarstellung auf.
     public static func path(for spec: ShapeSpec) -> VectorPath {
         let frame = spec.frame
-        // Wichtig: `CGRect.width`/`.height` sind bereits normalisiert (liefern
-        // stets den Betrag) — ein mit negativer Breite/Höhe konstruiertes Rect
-        // würde die Prüfung also unbemerkt durchrutschen. Die rohen
-        // `size`-Komponenten behalten das Vorzeichen und decken auch diesen
-        // entarteten Fall ab.
+        // `CGRect.width`/`.height` sind bereits normalisiert (liefern stets den
+        // Betrag) — ein mit negativer Grösse gebautes Rechteck rutschte hier
+        // also unbemerkt durch. Die rohen `size`-Komponenten behalten das
+        // Vorzeichen.
         guard frame.size.width > 0, frame.size.height > 0 else { return VectorPath() }
+
+        // Nicht endliche Werte dürfen unter keinen Umständen in die Geometrie
+        // gelangen: Sie pflanzen sich durch Hüllrahmen, Abflachung und Export
+        // fort und sind dort nicht mehr als Ursache erkennbar. Über die
+        // Zahlenfelder des Inspektors sind sie erreichbar.
+        guard frame.isFiniteRect else { return VectorPath() }
 
         switch spec {
         case let .rectangle(frame, cornerRadius):
@@ -225,5 +230,13 @@ public enum ShapeGeometry {
         }
 
         return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
+    }
+}
+
+extension CGRect {
+    /// `true`, wenn Ursprung und Grösse durchweg endliche Zahlen sind.
+    var isFiniteRect: Bool {
+        origin.x.isFinite && origin.y.isFinite
+            && size.width.isFinite && size.height.isFinite
     }
 }
