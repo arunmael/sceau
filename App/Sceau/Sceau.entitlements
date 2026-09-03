@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sandbox von Anfang an aktiv: nachträglich einzuschalten ist deutlich
+	     mühsamer, und ohne sie wäre ein späterer Vertrieb über den App Store
+	     verbaut. NSDocument regelt den Dateizugriff selbst; darüber hinaus
+	     braucht die App nur, was der Nutzer explizit auswählt. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>
