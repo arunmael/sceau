@@ -15,9 +15,17 @@ DerivedData/
 
 # Swift Package Manager
 .build/
+.build-*/
 Packages/
 Package.pins
-Package.resolved
+
+# Package.resolved wird bewusst NICHT ignoriert: Es pinnt die genauen Versionen
+# von iOverlay und dessen Abhängigkeiten. Bei einer App (im Gegensatz zu einer
+# Bibliothek) gehört diese Datei in die Versionsverwaltung, sonst baut nicht
+# jeder Rechner denselben Stand.
+
+# Aus project.yml erzeugt (XcodeGen) — nicht versionieren, sonst gibt es zwei
+# Quellen der Wahrheit. Neu erzeugen mit: xcodegen generate
 *.xcodeproj
 
 # Fastlane
