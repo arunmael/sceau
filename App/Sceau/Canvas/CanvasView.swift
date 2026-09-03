@@ -52,6 +52,18 @@ final class CanvasView: NSView {
 
     private var interaction: Interaction = .idle
 
+    /// Der Pfad, an dem der Zeichenstift gerade arbeitet.
+    private var penDraft = PenDraft()
+
+    /// Letzte bekannte Mausposition in Dokumentkoordinaten — für die
+    /// Gummiband-Vorschau des Zeichenstifts.
+    private var cursorPoint: CGPoint?
+
+    private var mouseTracking: NSTrackingArea?
+
+    /// Hilfslinien der aktuell wirksamen Einrastungen.
+    private var activeGuides: [SnapGuide] = []
+
     /// Kantenlänge eines Griffpunkts auf dem Bildschirm.
     ///
     /// Deutlich grösser als die klassischen 6 pt: Die App soll sich laut
@@ -70,6 +82,10 @@ final class CanvasView: NSView {
         case resizing(handle: ResizeHandle, startBounds: CGRect, originals: [UUID: Node])
         /// Auswahlrechteck wird aufgezogen.
         case marquee(origin: CGPoint, current: CGPoint)
+        /// Am Griff des soeben gesetzten Ankers wird gezogen.
+        case penHandle
+        /// Ein Anker oder Griff eines bestehenden Pfades wird bewegt.
+        case editingAnchor(node: UUID, address: AnchorAddress, handle: AnchorHandle)
     }
 
     init(store: DocumentStore) {
@@ -155,6 +171,34 @@ final class CanvasView: NSView {
         centerArtboard()
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let mouseTracking { removeTrackingArea(mouseTracking) }
+
+        // Nötig für die Gummiband-Vorschau des Zeichenstifts: Ohne verfolgte
+        // Mausbewegung wüsste die Vorschau nicht, wohin das nächste Segment
+        // laufen soll.
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        mouseTracking = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard !penDraft.isEmpty else { return }
+        cursorPoint = documentPoint(from: convert(event.locationInWindow, from: nil))
+        rebuildOverlayAnimated()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard cursorPoint != nil else { return }
+        cursorPoint = nil
+        rebuildOverlayAnimated()
+    }
+
     // MARK: - Zeichnen
 
     func refresh() {
@@ -224,12 +268,35 @@ final class CanvasView: NSView {
             break
         }
 
+        for guide in activeGuides {
+            addGuide(guide)
+        }
+
+        // Zeichenstift in Arbeit: Gummiband zur Maus und die bereits gesetzten Anker.
+        if !penDraft.isEmpty {
+            addStroke(penDraft.previewPath(cursor: cursorPoint), color: .controlAccentColor, dashed: true)
+            for (index, anchor) in penDraft.anchors.enumerated() {
+                // Der erste Anker ist hervorgehoben, weil ein Klick darauf den
+                // Pfad schliesst.
+                addAnchorMarker(at: viewPoint(from: anchor.point), emphasized: index == 0)
+            }
+        }
+
         guard !store.selection.isEmpty else { return }
 
         for node in store.document.nodes where store.selection.contains(node.id) {
             let box = NodeGeometry.bounds(for: node)
             guard !box.isNull else { continue }
             addOutline(rect: viewRect(from: box), color: .controlAccentColor, dashed: false)
+        }
+
+        // Mit dem Zeichenstift werden Anker bearbeitet, nicht skaliert — die
+        // Skaliergriffe würden dabei nur im Weg liegen.
+        if store.activeTool == .pen {
+            if penDraft.isEmpty, let path = selectedEditablePath() {
+                addAnchorHandles(of: path)
+            }
+            return
         }
 
         // Griffe nur bei genau einer Auswahl — bei mehreren wäre unklar, worauf
@@ -239,6 +306,97 @@ final class CanvasView: NSView {
                 addHandle(at: handle.position(in: viewRect(from: box)))
             }
         }
+    }
+
+    /// Der Pfad des ausgewählten Knotens, sofern genau einer ausgewählt ist und
+    /// er überhaupt Anker hat.
+    private func selectedEditablePath() -> VectorPath? {
+        guard store.selection.count == 1,
+              let id = store.selection.first,
+              let node = store.document.node(id: id),
+              case let .path(path) = node.content
+        else { return nil }
+        return path
+    }
+
+    /// Zeichnet Anker und Kurvengriffe eines Pfades zum Bearbeiten.
+    private func addAnchorHandles(of path: VectorPath) {
+        for subpath in path.subpaths {
+            for anchor in subpath.anchors {
+                let anchorPoint = viewPoint(from: anchor.point)
+
+                for control in [anchor.controlIn, anchor.controlOut] where control != anchor.point {
+                    let controlPoint = viewPoint(from: control)
+                    addLine(from: anchorPoint, to: controlPoint)
+                    addAnchorMarker(at: controlPoint, emphasized: false, round: true)
+                }
+                addAnchorMarker(at: anchorPoint, emphasized: false)
+            }
+        }
+    }
+
+    /// Zeichnet eine Einrast-Hilfslinie.
+    private func addGuide(_ guide: SnapGuide) {
+        let path = CGMutablePath()
+        switch guide.orientation {
+        case .vertical:
+            let x = viewPoint(from: CGPoint(x: guide.position, y: 0)).x
+            path.move(to: CGPoint(x: x, y: viewPoint(from: CGPoint(x: 0, y: guide.start)).y))
+            path.addLine(to: CGPoint(x: x, y: viewPoint(from: CGPoint(x: 0, y: guide.end)).y))
+        case .horizontal:
+            let y = viewPoint(from: CGPoint(x: 0, y: guide.position)).y
+            path.move(to: CGPoint(x: viewPoint(from: CGPoint(x: guide.start, y: 0)).x, y: y))
+            path.addLine(to: CGPoint(x: viewPoint(from: CGPoint(x: guide.end, y: 0)).x, y: y))
+        }
+
+        let shape = CAShapeLayer()
+        shape.path = path
+        shape.strokeColor = NSColor.systemPink.cgColor
+        shape.lineWidth = 1
+        shape.fillColor = nil
+        overlayLayer.addSublayer(shape)
+    }
+
+    private func addStroke(_ path: VectorPath, color: NSColor, dashed: Bool) {
+        guard !path.isEmpty else { return }
+        var transform = CGAffineTransform(translationX: documentOrigin.x, y: documentOrigin.y)
+            .scaledBy(x: zoom, y: zoom)
+        guard let scaled = path.cgPath.copy(using: &transform) else { return }
+
+        let shape = CAShapeLayer()
+        shape.path = scaled
+        shape.fillColor = nil
+        shape.strokeColor = color.cgColor
+        shape.lineWidth = 1
+        if dashed { shape.lineDashPattern = [4, 3] }
+        overlayLayer.addSublayer(shape)
+    }
+
+    private func addLine(from: CGPoint, to: CGPoint) {
+        let path = CGMutablePath()
+        path.move(to: from)
+        path.addLine(to: to)
+
+        let shape = CAShapeLayer()
+        shape.path = path
+        shape.strokeColor = NSColor.controlAccentColor.withAlphaComponent(0.6).cgColor
+        shape.lineWidth = 1
+        shape.fillColor = nil
+        overlayLayer.addSublayer(shape)
+    }
+
+    /// Quadrat für Ankerpunkte, Kreis für Kurvengriffe — dieselbe Unterscheidung
+    /// wie in gängigen Vektorprogrammen.
+    private func addAnchorMarker(at point: CGPoint, emphasized: Bool, round: Bool = false) {
+        let size = Self.handleScreenSize * (emphasized ? 1.0 : 0.75)
+        let rect = CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
+
+        let shape = CAShapeLayer()
+        shape.path = round ? CGPath(ellipseIn: rect, transform: nil) : CGPath(rect: rect, transform: nil)
+        shape.fillColor = emphasized ? NSColor.controlAccentColor.cgColor : NSColor.white.cgColor
+        shape.strokeColor = NSColor.controlAccentColor.cgColor
+        shape.lineWidth = 1.5
+        overlayLayer.addSublayer(shape)
     }
 
     private func addOutline(rect: CGRect, color: NSColor, dashed: Bool, filled: Bool = false) {
@@ -321,6 +479,16 @@ final class CanvasView: NSView {
         let viewPoint = convert(event.locationInWindow, from: nil)
         let docPoint = documentPoint(from: viewPoint)
 
+        if store.activeTool == .pen {
+            handlePenMouseDown(at: docPoint)
+            return
+        }
+
+        if store.activeTool == .text {
+            createTextNode(at: docPoint)
+            return
+        }
+
         if store.activeTool.createsShape {
             interaction = .creating(origin: docPoint, current: docPoint)
             return
@@ -349,7 +517,20 @@ final class CanvasView: NSView {
 
         switch interaction {
         case let .creating(origin, _):
-            interaction = .creating(origin: origin, current: docPoint)
+            var corner = docPoint
+            if let settings = snapSettings(event) {
+                let snap = Snapper.snap(
+                    point: docPoint,
+                    to: snapTargets(excluding: []),
+                    within: store.document.artboard.frame,
+                    settings: settings
+                )
+                corner = CGPoint(x: docPoint.x + snap.offset.dx, y: docPoint.y + snap.offset.dy)
+                activeGuides = snap.guides
+            } else {
+                activeGuides = []
+            }
+            interaction = .creating(origin: origin, current: corner)
             rebuildOverlayAnimated()
 
         case let .marquee(origin, _):
@@ -357,7 +538,27 @@ final class CanvasView: NSView {
             rebuildOverlayAnimated()
 
         case let .moving(start, originals):
-            let delta = CGVector(dx: docPoint.x - start.x, dy: docPoint.y - start.y)
+            var delta = CGVector(dx: docPoint.x - start.x, dy: docPoint.y - start.y)
+
+            // Eingerastet wird der gemeinsame Hüllrahmen der Auswahl, nicht
+            // jedes Objekt für sich — sonst zerrisse eine Mehrfachauswahl.
+            if let settings = snapSettings(event) {
+                let movedBox = LayoutOps
+                    .boundingBox(of: originals.values.map { NodeGeometry.bounds(for: $0) })
+                    .offsetBy(dx: delta.dx, dy: delta.dy)
+                let snap = Snapper.snap(
+                    rect: movedBox,
+                    to: snapTargets(excluding: Set(originals.keys)),
+                    within: store.document.artboard.frame,
+                    settings: settings
+                )
+                delta.dx += snap.offset.dx
+                delta.dy += snap.offset.dy
+                activeGuides = snap.guides
+            } else {
+                activeGuides = []
+            }
+
             applyLive { document in
                 for (id, original) in originals {
                     guard var node = document.node(id: id) else { continue }
@@ -373,6 +574,20 @@ final class CanvasView: NSView {
                     guard document.node(id: id) != nil else { continue }
                     document.replace(NodeTransform.resized(original, from: startBounds, to: newBounds))
                 }
+            }
+
+        case .penHandle:
+            penDraft.dragHandleOfLastAnchor(to: docPoint)
+            rebuildOverlayAnimated()
+
+        case let .editingAnchor(nodeID, address, handle):
+            applyLive { document in
+                guard let node = document.node(id: nodeID),
+                      case let .path(path) = node.content
+                else { return }
+                var updated = node
+                updated.content = .path(path.movingHandle(handle, at: address, to: docPoint))
+                document.replace(updated)
             }
 
         case .idle:
@@ -395,11 +610,20 @@ final class CanvasView: NSView {
             // eine Zugbewegung genau einen Schritt ergibt und nicht Hunderte.
             commitLive(actionName: isResizing ? "Grösse ändern" : "Bewegen")
 
+        case .editingAnchor:
+            commitLive(actionName: "Ankerpunkt bewegen")
+
+        case .penHandle:
+            // Der Zeichenstift bleibt aktiv: Loslassen beendet nur das Ziehen
+            // am Griff, nicht den Pfad.
+            break
+
         case .idle:
             break
         }
 
         interaction = .idle
+        activeGuides = []
         refresh()
     }
 
@@ -448,6 +672,111 @@ final class CanvasView: NSView {
         CATransaction.commit()
     }
 
+    // MARK: - Einrasten
+
+    /// Die Einstellungen für den laufenden Zug, oder `nil`, wenn gerade gar
+    /// nicht eingerastet werden soll.
+    ///
+    /// Die Befehlstaste schaltet das Einrasten vorübergehend ab — der übliche
+    /// Weg, um einmal ganz bewusst *nicht* auszurichten. Das wird hier als
+    /// „überhaupt nicht einrasten" behandelt statt über die Schalter in
+    /// ``SnapSettings``: Die Zeichenfläche bleibt dort bewusst immer ein Ziel,
+    /// und genau die soll bei gedrückter Befehlstaste ebenfalls nicht fangen.
+    private func snapSettings(_ event: NSEvent) -> SnapSettings? {
+        guard !event.modifierFlags.contains(.command) else { return nil }
+
+        var settings = SnapSettings()
+        // Die Fangweite gilt in Dokumentpunkten; ohne Umrechnung würde sie
+        // beim Hineinzoomen unbrauchbar gross.
+        settings.threshold /= zoom
+        return settings
+    }
+
+    /// Die Rahmen, an denen eingerastet werden kann — alles ausser den gerade
+    /// bewegten Objekten, denn an sich selbst rastet nichts ein.
+    private func snapTargets(excluding excluded: Set<UUID>) -> [CGRect] {
+        store.document.nodes
+            .filter { $0.isVisible && !excluded.contains($0.id) }
+            .map { NodeGeometry.bounds(for: $0) }
+            .filter { !$0.isNull }
+    }
+
+    // MARK: - Zeichenstift
+
+    /// Trefferradius für Anker und Griffe, umgerechnet in Dokumentpunkte —
+    /// beim Hineinzoomen soll die Fangweite auf dem Bildschirm gleich bleiben.
+    private var anchorTolerance: CGFloat {
+        Self.handleScreenSize / zoom
+    }
+
+    private func handlePenMouseDown(at point: CGPoint) {
+        // Bei einem bereits ausgewählten Pfad greift der Zeichenstift dessen
+        // Anker und Griffe ab — das ist die Nachbearbeitung aus Abschnitt 5.2
+        // des Entwicklungsplans.
+        if penDraft.isEmpty,
+           let nodeID = store.selection.first,
+           store.selection.count == 1,
+           let node = store.document.node(id: nodeID),
+           case let .path(path) = node.content,
+           let hit = path.hitTestAnchor(at: point, tolerance: anchorTolerance) {
+            interaction = .editingAnchor(node: nodeID, address: hit.address, handle: hit.handle)
+            return
+        }
+
+        // Zurück auf den Anfangspunkt schliesst den Pfad.
+        if penDraft.isOverFirstAnchor(point, tolerance: anchorTolerance) {
+            finishPenPath(closed: true)
+            return
+        }
+
+        penDraft.addAnchor(at: point)
+        interaction = .penHandle
+        rebuildOverlayAnimated()
+    }
+
+    /// Schliesst den gezeichneten Pfad ab und legt ihn als Knoten an.
+    private func finishPenPath(closed: Bool) {
+        defer {
+            penDraft = PenDraft()
+            interaction = .idle
+            refresh()
+        }
+
+        guard let path = penDraft.path(closed: closed) else { return }
+
+        // Ein offener Pfad ohne Kontur wäre unsichtbar — deshalb bekommt er
+        // eine, während eine geschlossene Form gefüllt wird.
+        var style = Style()
+        if !closed {
+            style.fill = .none
+            style.stroke = Stroke(paint: .solid(.black), width: 2, cap: .round, join: .round)
+        }
+
+        let node = Node(name: closed ? "Pfad" : "Linie", style: style, content: .path(path))
+        store.apply("Pfad zeichnen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
+    }
+
+    private func cancelPenPath() {
+        penDraft = PenDraft()
+        interaction = .idle
+        refresh()
+    }
+
+    // MARK: - Text
+
+    private func createTextNode(at point: CGPoint) {
+        let node = Node(
+            name: "Text",
+            style: Style(fill: .solid(.black)),
+            content: .text(TextSpec(string: "Text", origin: point))
+        )
+        store.apply("Text hinzufügen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
+        // Weiter geht es im Inspektor; das Werkzeug hat seine Aufgabe erfüllt.
+        store.activeTool = .select
+    }
+
     // MARK: - Werkzeugaktionen
 
     private func createShape(in rect: CGRect) {
@@ -486,6 +815,24 @@ final class CanvasView: NSView {
     // MARK: - Tastatur
 
     override func keyDown(with event: NSEvent) {
+        // Solange gezeichnet wird, gehören diese Tasten dem Zeichenstift.
+        if !penDraft.isEmpty {
+            switch event.keyCode {
+            case 36, 76: // Zeilenschalter und Enter
+                finishPenPath(closed: false)
+                return
+            case 53: // Esc
+                cancelPenPath()
+                return
+            case 51, 117: // Rückschritt und Entfernen
+                penDraft.removeLastAnchor()
+                rebuildOverlayAnimated()
+                return
+            default:
+                break
+            }
+        }
+
         switch event.keyCode {
         case 51, 117: // Rückschritt und Entfernen
             deleteSelection()

@@ -108,10 +108,50 @@ Umgesetzt über `NSDocument` statt Eigenbau:
 - „Version jetzt sichern" (⌥⌘S) als ausdrücklicher Wiederherstellungspunkt vor
   riskanten Schritten
 
+## Einrasten
+
+Beim Bewegen rastet der **gemeinsame Hüllrahmen** der Auswahl ein, nicht jedes
+Objekt einzeln — sonst zerrisse eine Mehrfachauswahl. Kandidaten sind Kanten
+und Mitten der übrigen Objekte, die Zeichenfläche selbst sowie das Raster,
+wobei echte Objektkanten Vorrang vor Rasterlinien haben.
+
+Die gedrückte Befehlstaste schaltet das Einrasten für einen Zug vollständig ab.
+Das wird in der Zeichenfläche entschieden und nicht über die Schalter in
+`SnapSettings`: Dort bleibt die Zeichenfläche bewusst immer ein Ziel, und
+genau die soll bei gedrückter Befehlstaste ebenfalls nicht fangen.
+
+Die Fangweite ist in Dokumentpunkten angegeben und wird durch den Zoomfaktor
+geteilt, damit sie auf dem Bildschirm konstant bleibt.
+
+## Zeichenstift
+
+Die Griff-Semantik liegt als Werttyp (`PenDraft`) im Kern, nicht als Zustand in
+der Zeichenfläche — nur so lässt sich der heikle Teil ohne laufende Oberfläche
+prüfen. Klicken setzt Eckpunkte, Ziehen erzeugt symmetrische Griffe, ein Klick
+auf den ersten Anker schliesst den Pfad, Zeilenschalter beendet ihn offen.
+
+Die Nachbearbeitung bestehender Pfade läuft über dasselbe Werkzeug: Ist ein
+Pfad ausgewählt und der Zeichenstift aktiv, zeigt die Zeichenfläche Anker und
+Kurvengriffe statt der Skaliergriffe. `VectorPath.movingHandle(_:at:to:)` hält
+dabei die Regeln aus `AnchorStyle` ein — bei `.symmetric` wird der Gegengriff
+gespiegelt, bei `.smooth` nur mitgedreht, bei `.corner` bleibt er unberührt.
+
+## Absturzerfassung
+
+Über `MetricKit` statt eines eigenen Absturzfängers, der dem System nur in die
+Quere käme. Die Berichte landen als JSON im Programmunterstützungsordner
+innerhalb des Sandbox-Containers.
+
+**Noch offen:** Es gibt keinen Server, an den sie gehen. Das kommt, sobald der
+Vertriebsweg entschieden ist; bis dahin sind die lokalen Dateien der Weg, um
+nach einem Absturz nachzusehen.
+
 ## Offene Punkte
 
 - Kurven-Refitting nach booleschen Operationen
 - Zusammenfassen von Undo-Schritten beim Ziehen an Reglern im Inspektor
-- Zeichenstift (Ankerpunkt-Editor) ist im Modell vorbereitet, aber noch ohne
-  Werkzeug-Interaktion
-- Crash-Reporting über MetricKit (Entwicklungsplan 2.1) noch nicht angebunden
+- Versand der Diagnoseberichte (siehe oben)
+- Der Zeichenstift kann bestehende Pfade bearbeiten, aber noch keine Anker
+  hinzufügen oder entfernen
+- Verläufe werden im Inspektor bearbeitet, aber nicht direkt auf der
+  Zeichenfläche

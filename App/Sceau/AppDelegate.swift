@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenuBuilder.build()
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        CrashReporter.shared.start()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Dokumentbasierte Apps bleiben ohne Fenster geöffnet — sonst wäre nach
         // dem Schliessen des letzten Dokuments kein „Neu" mehr erreichbar.
@@ -130,6 +134,13 @@ enum MainMenuBuilder {
             ))
         }
         menu.addItem(makeSubmenu(pathfinder, title: "Pathfinder"))
+        menu.addItem(.separator())
+        menu.addItem(item(
+            "Text in Pfade umwandeln",
+            #selector(DocumentWindowController.convertTextToOutlines(_:)),
+            "o",
+            modifiers: [.command, .shift]
+        ))
         return menu
     }
 

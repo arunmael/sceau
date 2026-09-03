@@ -156,6 +156,36 @@ final class DocumentWindowController: NSWindowController {
         }
     }
 
+    /// Ersetzt ausgewählte Textebenen durch ihre Konturen.
+    ///
+    /// Beim Weitergeben eines Logos ist das der entscheidende Schritt: Ein
+    /// Pfad sieht überall gleich aus, ein Text nur dort, wo die Schrift
+    /// installiert ist. Der Export macht das ohnehin automatisch — hier wird
+    /// es sichtbar und weiter bearbeitbar im Dokument festgeschrieben.
+    @objc func convertTextToOutlines(_ sender: Any?) {
+        let textNodes = store.document.nodes.filter { node in
+            guard store.selection.contains(node.id) else { return false }
+            if case .text = node.content { return true }
+            return false
+        }
+        guard !textNodes.isEmpty else { return }
+
+        store.apply("Text in Pfade umwandeln") { document in
+            for node in textNodes {
+                guard case let .text(spec) = node.content else { continue }
+                let path = TextToPath.path(for: spec)
+                // Ein Text ohne Konturen (etwa eine leere Zeichenkette) bliebe
+                // sonst als unsichtbarer, nicht mehr editierbarer Pfad zurück.
+                guard !path.isEmpty else { continue }
+
+                var converted = node
+                converted.content = .path(path)
+                converted.name = spec.string.isEmpty ? node.name : spec.string
+                document.replace(converted)
+            }
+        }
+    }
+
     // MARK: - Ausrichten
 
     @objc private func performAlignment(_ sender: NSMenuItem) {
