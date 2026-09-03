@@ -6,7 +6,7 @@ import SceauCore
 enum AlignmentCommands {
 
     static func perform(named key: String, on store: DocumentStore) {
-        let selected = store.document.nodes.filter { store.selection.contains($0.id) }
+        let selected = store.document.nodes(with: store.selection)
         guard !selected.isEmpty else { return }
 
         let boxes = selected.map { NodeGeometry.bounds(for: $0) }

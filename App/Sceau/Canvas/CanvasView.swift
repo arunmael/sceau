@@ -123,6 +123,8 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             _ = store.document
             _ = store.selection
             _ = store.zoom
+            _ = store.activeTool
+            _ = store.showsGrid
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -202,6 +204,23 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
     // MARK: - Zeichnen
 
+    /// Der Mauszeiger sagt, was ein Klick gerade bewirkt.
+    ///
+    /// Ohne diese Rückmeldung ist bei einem Werkzeugwechsel nicht erkennbar,
+    /// ob der nächste Klick auswählt oder zeichnet.
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: cursor(for: store.activeTool))
+    }
+
+    private func cursor(for tool: ToolKind) -> NSCursor {
+        switch tool {
+        case .select: return .arrow
+        case .rectangle, .ellipse, .polygon, .star, .pen: return .crosshair
+        case .text: return .iBeam
+        }
+    }
+
     func refresh() {
         // Ohne diese Klammer animiert Core Animation jede Pfadänderung nach —
         // beim Ziehen einer Form sähe das aus wie Nachlauf.
@@ -211,6 +230,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
         rebuildContent()
         rebuildOverlay()
+        window?.invalidateCursorRects(for: self)
     }
 
     private func rebuildContent() {
@@ -337,7 +357,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
         guard !store.selection.isEmpty else { return }
 
-        for node in store.document.nodes where store.selection.contains(node.id) {
+        for node in store.document.nodes(with: store.selection) {
             let box = NodeGeometry.bounds(for: node)
             guard !box.isNull else { continue }
             addOutline(rect: viewRect(from: box), color: .controlAccentColor, dashed: false)
@@ -478,7 +498,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     private func singleSelectionBounds() -> CGRect? {
         guard store.selection.count == 1,
               let id = store.selection.first,
-              let node = store.document.nodes.first(where: { $0.id == id })
+              let node = store.document.node(id: id)
         else { return nil }
         let box = NodeGeometry.bounds(for: node)
         return box.isNull ? nil : box

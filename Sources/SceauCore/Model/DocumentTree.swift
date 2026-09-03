@@ -24,6 +24,25 @@ public extension Document {
         return nil
     }
 
+    /// Der Index eines Knotens innerhalb seiner eigenen Ebene — also im
+    /// Dokument oder in der Gruppe, zu der er gehört.
+    func indexInParent(of id: UUID) -> Int? {
+        Document.indexInParent(of: id, in: nodes)
+    }
+
+    private static func indexInParent(of id: UUID, in level: [Node]) -> Int? {
+        if let index = level.firstIndex(where: { $0.id == id }) {
+            return index
+        }
+        for candidate in level {
+            if case let .group(children) = candidate.content,
+               let index = indexInParent(of: id, in: children) {
+                return index
+            }
+        }
+        return nil
+    }
+
     /// Ersetzt einen Knoten beliebiger Tiefe an Ort und Stelle. Tut nichts, wenn es ihn nicht gibt.
     mutating func replace(_ node: Node) {
         nodes = Document.replacing(node, in: nodes)
@@ -72,6 +91,12 @@ public extension Document {
     /// die nicht zwischen Gruppe und Inhalt unterscheiden müssen.
     var flattenedNodes: [Node] {
         Document.flatten(nodes)
+    }
+
+    /// Die Knoten zu den angegebenen Kennungen, beliebig tief und in
+    /// Zeichenreihenfolge. Unbekannte Kennungen werden übergangen.
+    func nodes(with ids: Set<UUID>) -> [Node] {
+        flattenedNodes.filter { ids.contains($0.id) }
     }
 
     private static func flatten(_ level: [Node]) -> [Node] {

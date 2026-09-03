@@ -148,7 +148,7 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
 
     private func moveInZOrder(by delta: Int, actionName: String) {
         guard let id = store.selection.first, store.selection.count == 1,
-              let index = store.document.nodes.firstIndex(where: { $0.id == id })
+              let index = store.document.indexInParent(of: id)
         else { return }
 
         store.apply(actionName) { document in
@@ -163,8 +163,7 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
     /// installiert ist. Der Export macht das ohnehin automatisch — hier wird
     /// es sichtbar und weiter bearbeitbar im Dokument festgeschrieben.
     @objc func convertTextToOutlines(_ sender: Any?) {
-        let textNodes = store.document.nodes.filter { node in
-            guard store.selection.contains(node.id) else { return false }
+        let textNodes = store.document.nodes(with: store.selection).filter { node in
             if case .text = node.content { return true }
             return false
         }

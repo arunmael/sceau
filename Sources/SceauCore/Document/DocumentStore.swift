@@ -208,7 +208,7 @@ public final class DocumentStore {
     // MARK: - Auswahl
 
     public var selectedNodes: [Node] {
-        document.nodes.filter { selection.contains($0.id) }
+        document.nodes(with: selection)
     }
 
     public func select(_ id: UUID, extending: Bool) {

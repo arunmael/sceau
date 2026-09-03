@@ -14,7 +14,7 @@ enum PathfinderCommands {
         on store: DocumentStore,
         presentingIn window: NSWindow?
     ) {
-        let selected = store.document.nodes.filter { store.selection.contains($0.id) }
+        let selected = store.document.nodes(with: store.selection)
 
         guard selected.count >= 2 else {
             present(
@@ -59,6 +59,8 @@ enum PathfinderCommands {
                 )
                 store.apply(resultName) { document in
                     document.remove(ids: removedIDs)
+                    // Weil die Ausgangsobjekte auf verschiedenen Ebenen liegen
+                    // können, kommt ihr gemeinsames Ergebnis auf die Wurzelebene.
                     document.appendOnTop(node)
                 }
                 store.selection = [node.id]

@@ -152,7 +152,7 @@ enum MainMenuBuilder {
         menu.addItem(item("Originalgrösse", #selector(DocumentWindowController.zoomToFit(_:)), "0"))
         menu.addItem(.separator())
         menu.addItem(item("Raster einblenden", #selector(DocumentWindowController.toggleGrid(_:)), "'"))
-        menu.addItem(item("Am Raster ausrichten", #selector(DocumentWindowController.toggleSnapping(_:)), "'", modifiers: [.command, .shift]))
+        menu.addItem(item("Einrasten", #selector(DocumentWindowController.toggleSnapping(_:)), "'", modifiers: [.command, .shift]))
         menu.addItem(.separator())
         menu.addItem(item("Vollbild", #selector(NSWindow.toggleFullScreen(_:)), "f", modifiers: [.command, .control]))
         return menu
