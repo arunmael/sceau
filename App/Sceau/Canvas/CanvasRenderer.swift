@@ -10,10 +10,6 @@ extension RGBAColor {
             components: [CGFloat(red), CGFloat(green), CGFloat(blue), CGFloat(alpha)]
         ) ?? CGColor(gray: 0, alpha: CGFloat(alpha))
     }
-
-    var nsColor: NSColor {
-        NSColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
-    }
 }
 
 /// Baut aus dem Dokumentmodell den Ebenenbaum aus `CALayer`n.

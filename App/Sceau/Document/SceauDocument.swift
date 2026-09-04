@@ -39,8 +39,6 @@ final class SceauDocument: NSDocument {
     /// weshalb Fenster und Paletten ihn nie zwischenspeichern dürfen.
     private(set) var store: DocumentStore
 
-    static let documentType = "ch.arunmeyer.sceau.document"
-
     override init() {
         store = DocumentStore(document: .empty())
         super.init()
