@@ -304,3 +304,58 @@ struct SVGExporterTests {
         #expect(svg.contains(#"opacity="0.5""#))
     }
 }
+
+@Suite("SVGExporter — knappe Pfaddaten")
+struct SVGCompactPathTests {
+
+    @Test("Ein geschlossener Polyzug endet mit Z, ohne die Schlussstrecke doppelt zu schreiben")
+    func closingLineIsNotWrittenTwice() {
+        let path = VectorPath(subpath: Subpath(closedPolygon: [
+            CGPoint(x: 10, y: 10),
+            CGPoint(x: 110, y: 10),
+            CGPoint(x: 110, y: 60),
+            CGPoint(x: 10, y: 60)
+        ]))
+
+        let d = SVGExporter.pathData(path)
+
+        // `Z` zieht die Linie zum Anfangspunkt bereits selbst; ein zusätzliches
+        // L dorthin bläht jede geschlossene Form unnötig auf.
+        #expect(d.hasSuffix("Z"))
+        #expect(d.filter { $0 == "L" }.count == 3, "erwartet drei Strecken, war: \(d)")
+        #expect(!d.contains("L10,10Z"), "die Schlussstrecke steht doppelt: \(d)")
+    }
+
+    @Test("Eine gekrümmte Schlussstrecke bleibt erhalten")
+    func closingCurveIsKept() {
+        // Der letzte Anker hat einen ausgehenden Griff, der erste einen
+        // eingehenden — die Rückkehr zum Anfang ist damit eine echte Kurve und
+        // darf nicht durch Z ersetzt werden.
+        let anchors = [
+            Anchor(
+                point: CGPoint(x: 0, y: 0),
+                controlIn: CGPoint(x: -30, y: 40),
+                controlOut: CGPoint(x: 30, y: -40)
+            ),
+            Anchor(
+                point: CGPoint(x: 100, y: 0),
+                controlIn: CGPoint(x: 70, y: -40),
+                controlOut: CGPoint(x: 130, y: 40)
+            )
+        ]
+        let path = VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
+
+        let d = SVGExporter.pathData(path)
+        #expect(d.filter { $0 == "C" }.count == 2, "beide Kurven müssen erhalten bleiben: \(d)")
+        #expect(d.hasSuffix("Z"))
+    }
+
+    @Test("Ein offener Pfad bekommt kein Z")
+    func openPathHasNoClose() {
+        let path = VectorPath(subpath: Subpath(
+            anchors: [Anchor(corner: .zero), Anchor(corner: CGPoint(x: 10, y: 0))],
+            isClosed: false
+        ))
+        #expect(!SVGExporter.pathData(path).contains("Z"))
+    }
+}

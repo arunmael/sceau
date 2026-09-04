@@ -72,7 +72,11 @@ public enum SVGExporter {
         for subpath in path.subpaths {
             guard let first = subpath.anchors.first else { continue }
             parts.append("M\(coord(first.point, decimals: decimals))")
-            for segment in subpath.segments {
+            let segments = subpath.segments
+            // Eine gerade Rückkehr zum Anfang übernimmt `Z` bereits; eine
+            // Kurve muss dagegen vor dem Schliessen ausdrücklich erhalten bleiben.
+            let omittedSegments = subpath.isClosed && segments.last?.isLine == true ? 1 : 0
+            for segment in segments.dropLast(omittedSegments) {
                 if segment.isLine {
                     parts.append("L\(coord(segment.end, decimals: decimals))")
                 } else {
