@@ -29,10 +29,28 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         setUpToolbar()
         // Merkt sich Grösse und Position über Sitzungen hinweg.
         window.setFrameAutosaveName("SceauDocumentWindow")
+
+        // Ohne das liegt der Tastaturfokus beim Öffnen auf der Ebenenliste.
+        // Befehle wie „Alles auswählen", Löschen oder Duplizieren laufen über
+        // die Responder-Kette und landeten dann dort statt auf der
+        // Zeichenfläche — sie wirkten erst nach einem Klick ins Bild.
+        window.initialFirstResponder = canvasView
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("Nur programmatisch verwendet") }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+
+        // `initialFirstResponder` allein genügt nicht: Der Split-View-Controller
+        // zieht den Tastaturfokus danach auf die Seitenleiste. Klickt der Nutzer
+        // später selbst in die Ebenenliste, wandert er dorthin — nur der
+        // Ausgangszustand wird hier festgelegt.
+        if let canvasView {
+            window?.makeFirstResponder(canvasView)
+        }
+    }
 
     // MARK: - Aufbau
 

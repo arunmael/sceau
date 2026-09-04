@@ -104,6 +104,20 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
+    // MARK: - Bedienungshilfen
+    //
+    // Ohne diese Angaben ist die Zeichenfläche für die Bedienungshilfen eine
+    // namenlose Fläche — sie taucht weder in der Vorlesereihenfolge auf noch
+    // lässt sich von aussen feststellen, ob sie den Tastaturfokus hat.
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        .layoutArea
+    }
+
+    override func accessibilityLabel() -> String? {
+        "Zeichenfläche"
+    }
+
     // MARK: - Beobachtung
 
     /// Zeichnet neu, sobald sich am Store etwas Sichtbares ändert.
