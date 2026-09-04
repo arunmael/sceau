@@ -152,6 +152,41 @@ innerhalb des Sandbox-Containers.
 Vertriebsweg entschieden ist; bis dahin sind die lokalen Dateien der Weg, um
 nach einem Absturz nachzusehen.
 
+## Was beim Start passiert
+
+Beim Öffnen eines Dokuments per Doppelklick soll **kein** zusätzliches leeres
+Fenster erscheinen. Die naheliegende Stelle dafür — `applicationShouldOpenUntitledFile`
+— taugt nicht: Sie wird gefragt, **bevor** das Öffnen-Ereignis eingetroffen ist,
+und käme deshalb verlässlich zum falschen Schluss.
+
+Stattdessen wird die Frage einen Durchlauf der Ereignisschleife später
+beantwortet, anhand des tatsächlichen Zustands: Ist dann kein Dokument offen,
+kommt ein leeres. Damit stimmen beide Wege, und die Wiederherstellung der
+letzten Sitzung durch macOS bleibt unangetastet — ein wiederhergestelltes
+Dokument zählt einfach mit.
+
+## Das App-Icon
+
+Das Programmsymbol ist selbst ein Sceau-Dokument (`Design/AppIcon.sceau`) und
+wird über die eigene Exportstrecke erzeugt (`swift run sceau-icon .`). Es lässt
+sich also in der App öffnen und ändern, statt in einem fremden Programm zu
+entstehen.
+
+Der Ring ist eine echte boolesche Subtraktion zweier Kreise, keine Kontur —
+so bleibt er beim Skalieren exakt. Nebenbei ist das Werkzeug ein laufender
+Praxistest von Grundformen, Boolean, Verlauf und Rasterexport.
+
+## Auswahl in Gruppen
+
+In der Ebenenliste lassen sich auch Knoten **innerhalb** einer Gruppe
+auswählen. Alle Befehle schlagen deshalb über `Document.nodes(with:)` nach,
+das den Baum beliebig tief durchsucht — nicht über die oberste Ebene. Zuvor
+taten Pathfinder, Ausrichten und die Z-Reihenfolge bei einer solchen Auswahl
+stillschweigend nichts, die unangenehmste Sorte Fehler.
+
+Der Treffertest auf der Zeichenfläche bleibt bewusst auf der obersten Ebene:
+Ein Klick soll die Gruppe treffen, nicht ihr Innenleben.
+
 ## Zwischenablage
 
 Kopieren, Einsetzen und Duplizieren nutzen einen **eigenen** Zwischenablagetyp

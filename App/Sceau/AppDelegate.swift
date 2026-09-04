@@ -14,6 +14,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashReporter.shared.start()
+        openUntitledDocumentIfNothingElseOpened()
+    }
+
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        // Die Entscheidung fällt bewusst nicht hier: Beim Start durch einen
+        // Doppelklick wird diese Frage gestellt, **bevor** das Öffnen-Ereignis
+        // eingetroffen ist — sie käme also verlässlich zum falschen Schluss und
+        // legte neben dem Dokument ein leeres Fenster an.
+        false
+    }
+
+    /// Legt ein leeres Dokument an, aber nur, wenn der Start keines mitgebracht hat.
+    private func openUntitledDocumentIfNothingElseOpened() {
+        // Einen Durchlauf der Ereignisschleife später: Bis dahin hat AppKit
+        // Öffnen-Ereignisse und die Wiederherstellung verarbeitet, und die
+        // Frage lässt sich anhand des tatsächlichen Zustands beantworten
+        // statt anhand einer Vermutung über die Reihenfolge.
+        DispatchQueue.main.async {
+            let controller = NSDocumentController.shared
+            guard controller.documents.isEmpty else { return }
+            try? controller.openUntitledDocumentAndDisplay(true)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
