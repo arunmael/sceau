@@ -154,16 +154,29 @@ nach einem Absturz nachzusehen.
 
 ## Was beim Start passiert
 
-Beim Öffnen eines Dokuments per Doppelklick soll **kein** zusätzliches leeres
-Fenster erscheinen. Die naheliegende Stelle dafür — `applicationShouldOpenUntitledFile`
-— taugt nicht: Sie wird gefragt, **bevor** das Öffnen-Ereignis eingetroffen ist,
-und käme deshalb verlässlich zum falschen Schluss.
+Der Start wird in `main.swift` ausdrücklich aufgesetzt — Delegate setzen,
+Menüleiste einhängen, dann laufen lassen — und **nicht** über `@main` auf dem
+Delegate.
 
-Stattdessen wird die Frage einen Durchlauf der Ereignisschleife später
-beantwortet, anhand des tatsächlichen Zustands: Ist dann kein Dokument offen,
-kommt ein leeres. Damit stimmen beide Wege, und die Wiederherstellung der
-letzten Sitzung durch macOS bleibt unangetastet — ein wiederhergestelltes
-Dokument zählt einfach mit.
+Der Grund ist ein realer Fehler, der genau so lange unbemerkt blieb, bis die
+Oberfläche zum ersten Mal über die Bedienungshilfen ausgelesen wurde: Mit
+`@main` wurde der Delegate erst gesetzt, nachdem AppKit die
+Start-Benachrichtigungen bereits verschickt hatte. Weder
+`applicationWillFinishLaunching` noch `applicationDidFinishLaunching`
+erreichten ihn. Die Folgen waren gravierend und beim blossen Ausprobieren
+schwer zu bemerken:
+
+- Die Menüleiste blieb bei dem, was AppKit von sich aus anlegt — nur Apple- und
+  Programmmenü. Sichern, Öffnen, Widerrufen, Pathfinder und Export waren über
+  die Menüleiste **nicht erreichbar**.
+- Die Absturzerfassung startete nie.
+
+**Kein Fehler ist dagegen** das zusätzliche leere Fenster, das beim Öffnen eines
+Dokuments erscheinen kann: Das ist die Wiederherstellung der letzten Sitzung
+durch macOS und damit genau die gewünschte Absturzsicherung. Bei wirklich
+leerem Zustand öffnet ein Doppelklick genau ein Fenster. Ein zwischenzeitlicher
+Eingriff über `applicationShouldOpenUntitledFile` war die Behebung eines
+Nicht-Problems und wurde wieder entfernt.
 
 ## Das App-Icon
 

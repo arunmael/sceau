@@ -1,41 +1,13 @@
 import AppKit
 
-/// Einstiegspunkt der App.
+/// Der Delegate der App.
 ///
-/// Die Menüleiste wird programmatisch aufgebaut statt aus einem NIB geladen:
-/// Ohne NIB gibt es keine verborgene zweite Quelle der Wahrheit, und die
-/// Einträge stehen zusammen mit ihren Aktionen an einer Stelle im Code.
-@main
+/// Programmstart und Menüleiste werden in `main.swift` ausdrücklich aufgesetzt,
+/// nicht über `@main` — die Begründung steht dort.
 final class AppDelegate: NSObject, NSApplicationDelegate {
-
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = MainMenuBuilder.build()
-    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashReporter.shared.start()
-        openUntitledDocumentIfNothingElseOpened()
-    }
-
-    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        // Die Entscheidung fällt bewusst nicht hier: Beim Start durch einen
-        // Doppelklick wird diese Frage gestellt, **bevor** das Öffnen-Ereignis
-        // eingetroffen ist — sie käme also verlässlich zum falschen Schluss und
-        // legte neben dem Dokument ein leeres Fenster an.
-        false
-    }
-
-    /// Legt ein leeres Dokument an, aber nur, wenn der Start keines mitgebracht hat.
-    private func openUntitledDocumentIfNothingElseOpened() {
-        // Einen Durchlauf der Ereignisschleife später: Bis dahin hat AppKit
-        // Öffnen-Ereignisse und die Wiederherstellung verarbeitet, und die
-        // Frage lässt sich anhand des tatsächlichen Zustands beantworten
-        // statt anhand einer Vermutung über die Reihenfolge.
-        DispatchQueue.main.async {
-            let controller = NSDocumentController.shared
-            guard controller.documents.isEmpty else { return }
-            try? controller.openUntitledDocumentAndDisplay(true)
-        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -124,8 +96,8 @@ enum MainMenuBuilder {
         menu.addItem(item("Ausschneiden", #selector(NSText.cut(_:)), "x"))
         menu.addItem(item("Kopieren", #selector(NSText.copy(_:)), "c"))
         menu.addItem(item("Einsetzen", #selector(NSText.paste(_:)), "v"))
-        menu.addItem(item("Duplizieren", Selector(("duplicate:")), "d"))
-        menu.addItem(item("Löschen", Selector(("delete:")), "\u{8}", modifiers: []))
+        menu.addItem(item("Duplizieren", #selector(CanvasView.duplicate(_:)), "d"))
+        menu.addItem(item("Löschen", #selector(CanvasView.delete(_:)), "\u{8}", modifiers: []))
         menu.addItem(.separator())
         menu.addItem(item("Alles auswählen", #selector(NSText.selectAll(_:)), "a"))
         return menu
