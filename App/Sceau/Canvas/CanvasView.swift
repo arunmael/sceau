@@ -18,14 +18,6 @@ enum ResizeHandle: CaseIterable {
         case .left: return CGPoint(x: rect.minX, y: rect.midY)
         }
     }
-
-    var cursor: NSCursor {
-        switch self {
-        case .top, .bottom: return .resizeUpDown
-        case .left, .right: return .resizeLeftRight
-        default: return .crosshair
-        }
-    }
 }
 
 /// Die Zeichenfläche.
@@ -169,9 +161,44 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         refresh()
     }
 
+    /// Ändert den Zoom so, dass der Punkt unter `viewAnchor` stehen bleibt.
+    ///
+    /// Ohne diesen Bezugspunkt wandert beim Zoomen die Stelle weg, die man
+    /// gerade betrachtet — man zoomt an seiner Arbeit vorbei.
+    func setZoom(_ newValue: CGFloat, keeping viewAnchor: CGPoint) {
+        let clamped = min(64, max(0.05, newValue))
+        guard clamped != zoom else { return }
+
+        let anchorInDocument = documentPoint(from: viewAnchor)
+        store.zoom = clamped
+        documentOrigin = CGPoint(
+            x: viewAnchor.x - anchorInDocument.x * clamped,
+            y: viewAnchor.y - anchorInDocument.y * clamped
+        )
+        refresh()
+    }
+
+    /// Zoomt um die Mitte der Ansicht — der Bezugspunkt für Menübefehle, bei
+    /// denen es keine Mausposition gibt.
+    func setZoomAroundCenter(_ newValue: CGFloat) {
+        setZoom(newValue, keeping: CGPoint(x: bounds.midX, y: bounds.midY))
+    }
+
+    /// Wurde die Zeichenfläche schon einmal eingemittet?
+    ///
+    /// Nur beim ersten Mal: Später würde jeder Layout-Durchlauf — also schon
+    /// das Ändern der Fenstergrösse — die verschobene Ansicht zurücksetzen.
+    private var hasCenteredOnce = false
+
     override func layout() {
         super.layout()
-        centerArtboard()
+
+        if !hasCenteredOnce, bounds.width > 0, bounds.height > 0 {
+            hasCenteredOnce = true
+            centerArtboard()
+        } else {
+            refresh()
+        }
     }
 
     override func updateTrackingAreas() {
@@ -1036,9 +1063,9 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
     override func magnify(with event: NSEvent) {
         // Pinch-to-Zoom über Trackpad und, per Sidecar, direkt auf dem iPad.
-        let factor = 1 + event.magnification
-        store.zoom = min(64, max(0.05, store.zoom * factor))
-        centerArtboard()
+        // Bezugspunkt sind die Finger, nicht die Mitte der Ansicht.
+        let anchor = convert(event.locationInWindow, from: nil)
+        setZoom(zoom * (1 + event.magnification), keeping: anchor)
     }
 
     override func scrollWheel(with event: NSEvent) {

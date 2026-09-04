@@ -223,8 +223,8 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
     }
 
     private func setZoom(_ value: CGFloat) {
-        store.zoom = min(64, max(0.05, value))
-        canvasView?.centerArtboard()
+        // Ohne Mausposition ist die Mitte der Ansicht der sinnvolle Bezugspunkt.
+        canvasView?.setZoomAroundCenter(value)
     }
 
     @objc func toggleGrid(_ sender: Any?) {
