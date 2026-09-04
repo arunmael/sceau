@@ -175,6 +175,16 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         refresh()
     }
 
+    /// Hält die gesamte Zeichenfläche sichtbar, damit nach dem Einpassen kein
+    /// zusätzlicher Bildlauf nötig ist.
+    func zoomToFitArtboard() {
+        store.zoom = ViewFitting.zoomToFit(
+            artboard: store.document.artboard.size,
+            in: bounds.size
+        )
+        centerArtboard()
+    }
+
     /// Ändert den Zoom so, dass der Punkt unter `viewAnchor` stehen bleibt.
     ///
     /// Ohne diesen Bezugspunkt wandert beim Zoomen die Stelle weg, die man

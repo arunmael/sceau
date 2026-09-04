@@ -232,6 +232,10 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         canvasView?.centerArtboard()
     }
 
+    @objc func zoomToFitWindow(_ sender: Any?) {
+        canvasView?.zoomToFitArtboard()
+    }
+
     @objc func zoomIn(_ sender: Any?) {
         setZoom(store.zoom * 1.25)
     }

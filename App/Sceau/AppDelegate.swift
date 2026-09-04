@@ -144,6 +144,7 @@ enum MainMenuBuilder {
         menu.addItem(item("Vergrössern", #selector(DocumentWindowController.zoomIn(_:)), "+"))
         menu.addItem(item("Verkleinern", #selector(DocumentWindowController.zoomOut(_:)), "-"))
         menu.addItem(item("Originalgrösse", #selector(DocumentWindowController.zoomToFit(_:)), "0"))
+        menu.addItem(item("Einpassen", #selector(DocumentWindowController.zoomToFitWindow(_:)), "9"))
         menu.addItem(.separator())
         menu.addItem(item("Raster einblenden", #selector(DocumentWindowController.toggleGrid(_:)), "'"))
         menu.addItem(item("Einrasten", #selector(DocumentWindowController.toggleSnapping(_:)), "'", modifiers: [.command, .shift]))
