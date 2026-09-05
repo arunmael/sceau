@@ -109,6 +109,9 @@ public enum SVGExporter {
             xml += context.line("</g>", indent: indent)
             return xml
 
+        case let .image(spec):
+            return imageXML(spec, node: node, context: &context, indent: indent)
+
         case .shape, .path, .text:
             // Auch Text wird als Kontur geschrieben, nie als <text>-Element:
             // Ein Empfänger ohne die verwendete Schrift bekäme sonst ein
@@ -120,6 +123,36 @@ public enum SVGExporter {
             let attrs = styleAttributes(for: node, context: &context)
             return context.line("<path d=\"\(xmlEscape(d))\"\(attrs)/>", indent: indent)
         }
+    }
+
+    /// Bettet ein Bild als `<image>` ein, gedreht über eine SVG-`transform`
+    /// um seinen eigenen Mittelpunkt — dieselbe Konvention wie überall sonst.
+    private static func imageXML(_ spec: ImageSpec, node: Node, context: inout RenderContext, indent: Int) -> String {
+        guard spec.frame.width > 0, spec.frame.height > 0 else { return "" }
+
+        let x = format(spec.frame.minX, decimals: context.decimals)
+        let y = format(spec.frame.minY, decimals: context.decimals)
+        let width = format(spec.frame.width, decimals: context.decimals)
+        let height = format(spec.frame.height, decimals: context.decimals)
+        let base64 = spec.data.base64EncodedString()
+        let mime = imageMIMEType(for: spec.data)
+
+        var attrs = " id=\"\(xmlEscape(node.name))\""
+        if node.rotation != 0 {
+            let degrees = format(node.rotation * 180 / .pi, decimals: max(context.decimals, 2))
+            let cx = format(spec.frame.midX, decimals: max(context.decimals, 2))
+            let cy = format(spec.frame.midY, decimals: max(context.decimals, 2))
+            attrs += " transform=\"rotate(\(degrees) \(cx) \(cy))\""
+        }
+        if node.style.opacity < 1 {
+            attrs += " opacity=\"\(format(node.style.opacity, decimals: max(context.decimals, 2)))\""
+        }
+
+        let href = "data:\(mime);base64,\(base64)"
+        return context.line(
+            "<image x=\"\(x)\" y=\"\(y)\" width=\"\(width)\" height=\"\(height)\" href=\"\(href)\"\(attrs)/>",
+            indent: indent
+        )
     }
 
     // MARK: - Stil-Attribute

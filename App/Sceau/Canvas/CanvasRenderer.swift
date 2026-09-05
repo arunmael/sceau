@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SceauCore
 
 extension RGBAColor {
@@ -43,6 +44,10 @@ enum CanvasRenderer {
             return container.sublayers?.isEmpty == false ? container : nil
         }
 
+        if case let .image(spec) = node.content {
+            return makeImageLayer(spec, rotation: node.rotation, opacity: node.style.opacity)
+        }
+
         let path = NodeGeometry.path(for: node)
         guard !path.isEmpty else { return nil }
         let cgPath = path.cgPath
@@ -79,6 +84,29 @@ enum CanvasRenderer {
         }
 
         return container.sublayers?.isEmpty == false ? container : nil
+    }
+
+    // MARK: - Bild
+
+    /// Dieselbe ImageIO-Dekodierung wie beim Export (kein `NSImage` nötig,
+    /// `CALayer.contents` nimmt ein `CGImage` direkt entgegen).
+    private static func makeImageLayer(_ spec: ImageSpec, rotation: CGFloat, opacity: CGFloat) -> CALayer? {
+        guard spec.frame.width > 0, spec.frame.height > 0,
+              let source = CGImageSourceCreateWithData(spec.data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return nil }
+
+        let layer = CALayer()
+        layer.frame = spec.frame
+        layer.contents = image
+        layer.opacity = Float(opacity)
+        if rotation != 0 {
+            // `setAffineTransform` dreht standardmässig um den Mittelpunkt
+            // der eigenen Bounds (`anchorPoint` 0.5/0.5) — exakt dieselbe
+            // Konvention wie beim Drehen jeder anderen Kontur.
+            layer.setAffineTransform(CGAffineTransform(rotationAngle: rotation))
+        }
+        return layer
     }
 
     // MARK: - Fläche

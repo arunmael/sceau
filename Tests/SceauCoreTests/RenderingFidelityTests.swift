@@ -114,6 +114,21 @@ struct RenderingFidelityTests {
         #expect(seconds < 5, "Musterfüllung mit winziger Kachelgrösse dauerte \(seconds) s — Deckel greift nicht?")
     }
 
+    @Test("Ein Bild-Knoten zeigt tatsächlich seine Pixel, nicht nur einen leeren Rahmen")
+    func imageNodeRendersPixels() throws {
+        let tile = solidColorPNG(red: 10, green: 20, blue: 230)
+        var document = Document(artboard: Artboard(size: CGSize(width: 100, height: 100)))
+        document.nodes = [
+            Node(name: "Bild", content: .image(ImageSpec(data: tile, frame: CGRect(x: 0, y: 0, width: 100, height: 100))))
+        ]
+
+        let data = try RasterExporter.pngData(document, pixelWidth: 100, pixelHeight: 100)
+        let p = try pixels(data, size: 100)
+        let mitte = p(50, 50)
+
+        #expect(mitte.b > 150 && mitte.r < 100, "erwartet blaues Bild, war \(mitte)")
+    }
+
     @Test("Ein Schlagschatten färbt einen Punkt ausserhalb der Form unten rechts vom Objekt, nicht oben links")
     func shadowAppearsBelowAndRightOfShape() throws {
         var document = Document(artboard: Artboard(size: CGSize(width: 100, height: 100), background: .white))

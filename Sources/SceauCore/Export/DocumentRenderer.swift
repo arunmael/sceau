@@ -45,6 +45,11 @@ public enum DocumentRenderer {
             return
         }
 
+        if case let .image(spec) = node.content {
+            drawImage(spec, rotation: node.rotation, style: node.style, in: context)
+            return
+        }
+
         // Textknoten liefern über `NodeGeometry.path(for:)` derzeit einen
         // leeren Pfad (Text-zu-Pfad entsteht parallel in einer eigenen
         // Umsetzung) — sie fallen damit unten bei `path.isEmpty` automatisch
@@ -80,6 +85,41 @@ public enum DocumentRenderer {
             context.endTransparencyLayer()
         }
 
+        context.restoreGState()
+    }
+
+    // MARK: - Bild
+
+    /// Zeichnet ein eingebettetes Rasterbild in seinen Rahmen, gedreht um den
+    /// Mittelpunkt des unrotierten Rahmens — dieselbe Konvention wie
+    /// ``applyRotation(_:to:)`` in ``NodeGeometry`` für jede andere Kontur.
+    private static func drawImage(_ spec: ImageSpec, rotation: CGFloat, style: Style, in context: CGContext) {
+        guard spec.frame.width > 0, spec.frame.height > 0, spec.frame.isFiniteRect else { return }
+        guard let image = decodedImage(from: spec.data) else { return }
+
+        context.saveGState()
+        context.setAlpha(style.opacity)
+
+        if let shadow = style.shadow {
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            context.setShadow(
+                offset: CGSize(width: shadow.offset.width, height: -shadow.offset.height),
+                blur: shadow.blurRadius,
+                color: shadow.color.cgColor
+            )
+        }
+
+        if rotation != 0 {
+            let center = CGPoint(x: spec.frame.midX, y: spec.frame.midY)
+            context.translateBy(x: center.x, y: center.y)
+            context.rotate(by: rotation)
+            context.translateBy(x: -center.x, y: -center.y)
+        }
+        context.draw(image, in: spec.frame)
+
+        if style.shadow != nil {
+            context.endTransparencyLayer()
+        }
         context.restoreGState()
     }
 

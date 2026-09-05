@@ -25,6 +25,10 @@ public enum NodeTransform {
             spec.origin = CGPoint(x: spec.origin.x + delta.dx, y: spec.origin.y + delta.dy)
             result.content = .text(spec)
 
+        case var .image(spec):
+            spec.frame = spec.frame.offsetBy(dx: delta.dx, dy: delta.dy)
+            result.content = .image(spec)
+
         case let .group(children):
             result.content = .group(children: children.map { moved($0, by: delta) })
         }
@@ -68,6 +72,12 @@ public enum NodeTransform {
         case var .text(spec):
             spec.origin = mirror(spec.origin)
             result.content = .text(spec)
+
+        case var .image(spec):
+            let a = mirror(spec.frame.origin)
+            let b = mirror(CGPoint(x: spec.frame.maxX, y: spec.frame.maxY))
+            spec.frame = CGRect(from: a, to: b)
+            result.content = .image(spec)
 
         case let .group(children):
             result.content = .group(children: children.map { mirrored($0, along: axis, about: reference) })
@@ -134,6 +144,17 @@ public enum NodeTransform {
             spec.fontSize *= abs(scaleY)
             result.content = .text(spec)
 
+        case var .image(spec):
+            let origin = map(spec.frame.origin)
+            let corner = map(CGPoint(x: spec.frame.maxX, y: spec.frame.maxY))
+            spec.frame = CGRect(
+                x: min(origin.x, corner.x),
+                y: min(origin.y, corner.y),
+                width: abs(corner.x - origin.x),
+                height: abs(corner.y - origin.y)
+            )
+            result.content = .image(spec)
+
         case let .group(children):
             result.content = .group(children: children.map { resized($0, from: source, to: target) })
         }
@@ -163,6 +184,26 @@ public enum NodeTransform {
 
         if case let .group(children) = node.content, node.rotation == 0 {
             result.content = .group(children: children.map { distorted($0, from: sourceRect, to: corners) })
+            return result
+        }
+
+        // Ein Bild lässt sich nicht wie eine Kontur in einzelne Anker
+        // verziehen, ohne die Pixel selbst zu verzerren (das kann diese App
+        // nicht) — der generische Weg unten würde `NodeGeometry.path(for:)`
+        // benutzen, das für Bilder nur den rechteckigen Rahmen liefert, und
+        // so das Bild durch ein leeres, kaum sichtbares Rechteck ersetzen.
+        // Bewusst akzeptierte Einschränkung: nur der Rahmen wandert auf den
+        // Hüllrahmen der Zielecken, das Bild selbst bleibt unverzerrt.
+        if case var .image(spec) = node.content {
+            let xs = [corners.topLeft.x, corners.topRight.x, corners.bottomRight.x, corners.bottomLeft.x]
+            let ys = [corners.topLeft.y, corners.topRight.y, corners.bottomRight.y, corners.bottomLeft.y]
+            spec.frame = CGRect(
+                x: xs.min() ?? spec.frame.minX,
+                y: ys.min() ?? spec.frame.minY,
+                width: (xs.max() ?? spec.frame.maxX) - (xs.min() ?? spec.frame.minX),
+                height: (ys.max() ?? spec.frame.maxY) - (ys.min() ?? spec.frame.minY)
+            )
+            result.content = .image(spec)
             return result
         }
 

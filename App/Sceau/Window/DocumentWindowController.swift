@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwiftUI
 import SceauCore
 
@@ -115,6 +116,46 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
     /// selten genug im Einsatz, dass ein Menübefehl reicht.
     @objc func chooseDistortTool(_ sender: Any?) {
         store.activeTool = .distort
+    }
+
+    /// Bettet ein vom Nutzer gewähltes Bild als neuen Knoten ein — siehe
+    /// ``ImageSpec``. Keine eigene Freistellung: Wer den Hintergrund entfernen
+    /// will, tut das vorher mit Bordmitteln (z. B. "Motiv kopieren" in
+    /// Vorschau/Fotos) und wählt hier direkt das fertige, transparente PNG.
+    @objc func insertImage(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return }
+
+        // Auf der Zeichenfläche zentriert eingesetzt, in Originalgrösse in
+        // Punkten — bei sehr grossen Fotos auf die Zeichenfläche
+        // herunterskaliert, damit ein 4000px-Foto nicht weit über den
+        // sichtbaren Rand hinausragt.
+        let artboard = store.document.artboard.size
+        let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let maxDimension = max(pixelSize.width, pixelSize.height)
+        let fitLimit = max(artboard.width, artboard.height)
+        let scale = maxDimension > fitLimit && maxDimension > 0 ? fitLimit / maxDimension : 1
+        let size = CGSize(width: pixelSize.width * scale, height: pixelSize.height * scale)
+        let frame = CGRect(
+            x: artboard.width / 2 - size.width / 2,
+            y: artboard.height / 2 - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+
+        let node = Node(
+            name: url.deletingPathExtension().lastPathComponent,
+            content: .image(ImageSpec(data: data, frame: frame))
+        )
+        store.apply("Bild einfügen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
     }
 
     @objc private func chooseShapeTool(_ sender: NSMenuItem) {

@@ -36,6 +36,20 @@ public enum NodeGeometry {
             // dem, was am Bildschirm steht, und dem, was exportiert wird, gar
             // nicht erst auseinanderlaufen.
             return TextToPath.path(for: spec)
+        case let .image(spec):
+            // Für Hüllrahmen, Treffertest, Verschieben/Skalieren reicht der
+            // rechteckige Rahmen — dieselbe generische Maschinerie wie bei
+            // jeder anderen Form. Nur das tatsächliche Zeichnen der Pixel
+            // braucht eine eigene Behandlung (siehe DocumentRenderer/
+            // CanvasRenderer), die Kontur selbst ist ein reines Rechteck.
+            guard spec.frame.size.width > 0, spec.frame.size.height > 0 else { return VectorPath() }
+            let anchors = [
+                Anchor(corner: CGPoint(x: spec.frame.minX, y: spec.frame.minY)),
+                Anchor(corner: CGPoint(x: spec.frame.maxX, y: spec.frame.minY)),
+                Anchor(corner: CGPoint(x: spec.frame.maxX, y: spec.frame.maxY)),
+                Anchor(corner: CGPoint(x: spec.frame.minX, y: spec.frame.maxY))
+            ]
+            return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
         case let .group(children):
             // Teilpfade der Kinder werden aneinandergehängt statt geometrisch
             // vereinigt (keine boolesche Operation) — für Bounds und Rendering

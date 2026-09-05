@@ -202,4 +202,48 @@ struct NodeTransformTests {
         #expect(distorted.style == groupStyle)
         #expect(distorted.rotation == 0)
     }
+
+    // MARK: - Bild
+
+    private func imageNode(frame: CGRect) -> Node {
+        Node(name: "Bild", content: .image(ImageSpec(data: Data([1, 2, 3]), frame: frame)))
+    }
+
+    @Test("Verschieben eines Bild-Knotens verschiebt seinen Rahmen")
+    func movingImageMovesFrame() {
+        let node = imageNode(frame: CGRect(x: 0, y: 0, width: 40, height: 30))
+        let moved = NodeTransform.moved(node, by: CGVector(dx: 10, dy: 5))
+        guard case let .image(spec) = moved.content else {
+            Issue.record("erwartet weiterhin .image"); return
+        }
+        #expect(spec.frame == CGRect(x: 10, y: 5, width: 40, height: 30))
+    }
+
+    @Test("Skalieren eines Bild-Knotens passt seinen Rahmen an, ohne die Bilddaten zu verlieren")
+    func resizingImageKeepsData() {
+        let node = imageNode(frame: CGRect(x: 0, y: 0, width: 40, height: 30))
+        let resized = NodeTransform.resized(node, from: CGRect(x: 0, y: 0, width: 40, height: 30), to: CGRect(x: 0, y: 0, width: 80, height: 60))
+        guard case let .image(spec) = resized.content else {
+            Issue.record("erwartet weiterhin .image"); return
+        }
+        #expect(spec.frame == CGRect(x: 0, y: 0, width: 80, height: 60))
+        #expect(spec.data == Data([1, 2, 3]))
+    }
+
+    @Test("Verzerren eines Bild-Knotens kollabiert es NICHT zu einem leeren Pfad — der Rahmen wandert nur auf den Hüllrahmen der Zielecken")
+    func distortingImageKeepsItAsImage() {
+        let node = imageNode(frame: CGRect(x: 0, y: 0, width: 40, height: 30))
+        let corners = QuadCorners(
+            topLeft: CGPoint(x: -5, y: -5), topRight: CGPoint(x: 50, y: 0),
+            bottomRight: CGPoint(x: 45, y: 40), bottomLeft: CGPoint(x: 0, y: 35)
+        )
+        let distorted = NodeTransform.distorted(node, from: CGRect(x: 0, y: 0, width: 40, height: 30), to: corners)
+        guard case let .image(spec) = distorted.content else {
+            Issue.record("ein Bild darf beim Verzerren nicht zu einem (leeren) Pfad werden — das wäre stiller Datenverlust")
+            return
+        }
+        #expect(spec.data == Data([1, 2, 3]))
+        // Hüllrahmen aller vier Zielecken.
+        #expect(spec.frame == CGRect(x: -5, y: -5, width: 55, height: 45))
+    }
 }

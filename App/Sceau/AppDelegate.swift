@@ -76,6 +76,12 @@ enum MainMenuBuilder {
         menu.addItem(item("Neu", #selector(NSDocumentController.newDocument(_:)), "n"))
         menu.addItem(item("Öffnen …", #selector(NSDocumentController.openDocument(_:)), "o"))
         menu.addItem(.separator())
+        // Aus missing.md ("Hintergrund von Bild entfernen?"): Sceau
+        // berechnet keine eigene Freistellung, sondern nimmt ein Bild
+        // entgegen, das z. B. über "Motiv kopieren" in Vorschau/Fotos schon
+        // freigestellt wurde — deshalb ein Einfügen-Befehl, kein Freistellen-Werkzeug.
+        menu.addItem(item("Bild einfügen …", #selector(DocumentWindowController.insertImage(_:)), "i", modifiers: [.command, .shift]))
+        menu.addItem(.separator())
         menu.addItem(item("Schliessen", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Sichern", #selector(NSDocument.save(_:)), "s"))
         menu.addItem(item("Sichern unter …", #selector(NSDocument.saveAs(_:)), "s", modifiers: [.command, .shift]))

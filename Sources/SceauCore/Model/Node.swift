@@ -32,6 +32,8 @@ public struct Node: Identifiable, Equatable, Sendable, Codable {
         /// Ergebnis einer booleschen Operation.
         case path(VectorPath)
         case text(TextSpec)
+        /// Eingebettetes Rasterbild, siehe ``ImageSpec``.
+        case image(ImageSpec)
         /// Gruppe. `children` folgt derselben Z-Reihenfolge wie
         /// ``Document/nodes``: Index 0 liegt zuunterst.
         case group(children: [Node])

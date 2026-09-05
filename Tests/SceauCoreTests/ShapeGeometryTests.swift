@@ -411,6 +411,19 @@ struct NodeGeometryTests {
         #expect(NodeGeometry.path(for: node) == ShapeGeometry.path(for: spec))
     }
 
+    @Test("Bild-Knoten liefert seinen rechteckigen Rahmen als Hüllrahmen — für Auswahl, Griffe und Treffertest")
+    func imageNodeBoundsMatchFrame() {
+        let frame = CGRect(x: 10, y: 20, width: 100, height: 60)
+        let node = Node(name: "Bild", content: .image(ImageSpec(data: Data([9]), frame: frame)))
+        #expect(NodeGeometry.bounds(for: node) == frame)
+    }
+
+    @Test("Bild-Knoten mit entartetem Rahmen liefert einen leeren Pfad statt abzustürzen")
+    func imageNodeDegenerateFrameIsEmpty() {
+        let node = Node(name: "Bild", content: .image(ImageSpec(data: Data([9]), frame: CGRect(x: 0, y: 0, width: 0, height: 10))))
+        #expect(NodeGeometry.path(for: node).isEmpty)
+    }
+
     @Test("Path-Knoten liefert den Pfad unverändert")
     func pathNodeReturnsPathDirectly() {
         let subpath = Subpath(closedPolygon: [

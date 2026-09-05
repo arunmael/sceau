@@ -151,6 +151,22 @@ struct SVGExporterTests {
         #expect(svg.contains(#"filter="url(#"#))
     }
 
+    @Test("Bild-Knoten exportiert ein <image>-Element mit eingebetteten Base64-Daten")
+    func imageNodeExportsImageElement() throws {
+        var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))
+        document.nodes = [
+            Node(name: "Foto", content: .image(ImageSpec(data: Data([0, 1, 2, 3]), frame: CGRect(x: 5, y: 5, width: 20, height: 15))))
+        ]
+
+        let svg = SVGExporter.export(document)
+        try assertWellFormed(svg)
+
+        #expect(svg.contains("<image"))
+        #expect(svg.contains("width=\"20\""))
+        #expect(svg.contains("height=\"15\""))
+        #expect(svg.contains("base64,"))
+    }
+
     @Test("Unsichtbare Knoten fehlen in der Ausgabe")
     func invisibleNodesAreOmitted() throws {
         var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))
