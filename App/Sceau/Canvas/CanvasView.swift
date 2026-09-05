@@ -18,6 +18,45 @@ enum ResizeHandle: CaseIterable {
         case .left: return CGPoint(x: rect.minX, y: rect.midY)
         }
     }
+
+    /// Der Griff auf der gegenüberliegenden Seite — der Punkt, der beim
+    /// proportionalen Ziehen als Anker fix bleiben muss.
+    var opposite: ResizeHandle {
+        switch self {
+        case .topLeft: return .bottomRight
+        case .top: return .bottom
+        case .topRight: return .bottomLeft
+        case .right: return .left
+        case .bottomRight: return .topLeft
+        case .bottom: return .top
+        case .bottomLeft: return .topRight
+        case .left: return .right
+        }
+    }
+
+    /// `true` für die vier Eckgriffe. Nur dort ist ein Seitenverhältnis
+    /// überhaupt sinnvoll sperrbar — ein Kantengriff verändert per Definition
+    /// nur eine Achse.
+    var isCorner: Bool {
+        switch self {
+        case .topLeft, .topRight, .bottomRight, .bottomLeft: return true
+        case .top, .right, .bottom, .left: return false
+        }
+    }
+
+    /// Der Zeiger über diesem Griff.
+    ///
+    /// AppKit kennt öffentlich nur waagrechte und senkrechte Zug-Cursor, keinen
+    /// diagonalen — private API dafür wäre nicht zukunftssicher. Eckgriffe
+    /// bekommen deshalb das Fadenkreuz, das auch beim Formen-Aufziehen benutzt
+    /// wird: eindeutig "hier wird gezogen", ohne eine falsche Richtung zu suggerieren.
+    var resizeCursor: NSCursor {
+        switch self {
+        case .top, .bottom: return .resizeUpDown
+        case .left, .right: return .resizeLeftRight
+        case .topLeft, .topRight, .bottomRight, .bottomLeft: return .crosshair
+        }
+    }
 }
 
 /// Die Zeichenfläche.
@@ -262,6 +301,19 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     override func resetCursorRects() {
         super.resetCursorRects()
         addCursorRect(bounds, cursor: cursor(for: store.activeTool))
+
+        // Über den Skaliergriffen zeigt der Zeiger die Zugrichtung — ohne das
+        // wirkt ein Griff wie ein normaler Klickpunkt, nicht wie etwas, das
+        // sich ziehen lässt. Diese Rechtecke werden nach dem Vollflächen-Rect
+        // gesetzt, AppKit bevorzugt bei Überlappung das zuletzt gesetzte.
+        guard store.activeTool == .select, let box = singleSelectionBounds() else { return }
+        let viewBox = viewRect(from: box)
+        let half = Self.handleScreenSize
+        for handle in ResizeHandle.allCases {
+            let center = handle.position(in: viewBox)
+            let rect = CGRect(x: center.x - half, y: center.y - half, width: half * 2, height: half * 2)
+            addCursorRect(rect, cursor: handle.resizeCursor)
+        }
     }
 
     private func cursor(for tool: ToolKind) -> NSCursor {
@@ -694,7 +746,18 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             }
 
         case let .resizing(handle, startBounds, originals):
-            let newBounds = startBounds.resized(handle: handle, to: docPoint)
+            var newBounds = startBounds.resized(handle: handle, to: docPoint)
+            // Option-Taste sperrt das Seitenverhältnis — nur an Eckgriffen
+            // sinnvoll, ein Kantengriff verändert ohnehin nur eine Achse.
+            if event.modifierFlags.contains(.option), handle.isCorner,
+               startBounds.width > 0, startBounds.height > 0 {
+                let anchor = handle.opposite.position(in: startBounds)
+                newBounds = ProportionalResize.lockedRect(
+                    anchor: anchor,
+                    dragPoint: docPoint,
+                    aspectRatio: startBounds.width / startBounds.height
+                )
+            }
             applyLive { document in
                 for (id, original) in originals {
                     guard document.node(id: id) != nil else { continue }
