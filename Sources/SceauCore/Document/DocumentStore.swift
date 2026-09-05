@@ -16,6 +16,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     case cross
     case distort
     case pen
+    case freehand
     case text
 
     public var id: String { rawValue }
@@ -34,6 +35,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .cross: return "Kreuz"
         case .distort: return "Verzerren"
         case .pen: return "Zeichenstift"
+        case .freehand: return "Freihand"
         case .text: return "Text"
         }
     }
@@ -52,6 +54,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .cross: return "plus"
         case .distort: return "skew"
         case .pen: return "pencil.tip"
+        case .freehand: return "scribble"
         case .text: return "textformat"
         }
     }
@@ -60,7 +63,56 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     public var createsShape: Bool {
         switch self {
         case .rectangle, .ellipse, .polygon, .star, .squircle, .heart, .arrow, .speechBubble, .cross: return true
-        case .select, .distort, .pen, .text: return false
+        case .select, .distort, .pen, .freehand, .text: return false
+        }
+    }
+}
+
+/// Voreinstellung des Freihand-Werkzeugs. Bewusst genau drei feste Stifte
+/// statt eines eigenen Kalligrafie-Editors mit Druckkurven o.ä. — siehe
+/// Entwicklungsplan Abschnitt 5.2b (revidiert).
+public enum FreehandBrush: String, CaseIterable, Identifiable, Sendable {
+    /// Dünn, deckend, folgt der Handbewegung eng nach — für präzise Linien.
+    case pen
+    /// Mittlere Breite, leicht transparent, stärker geglättet.
+    case brush
+    /// Breit, voll deckend, am stärksten geglättet — für grobe Flächen.
+    case bucket
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .pen: return "Filzstift"
+        case .brush: return "Pinsel"
+        case .bucket: return "Eimer"
+        }
+    }
+
+    /// Konturbreite in Dokumentpunkten.
+    public var strokeWidth: CGFloat {
+        switch self {
+        case .pen: return 3
+        case .brush: return 10
+        case .bucket: return 24
+        }
+    }
+
+    public var opacity: CGFloat {
+        switch self {
+        case .pen: return 1
+        case .brush: return 0.85
+        case .bucket: return 1
+        }
+    }
+
+    /// Maximaler Abstand (Dokumentpunkte), den ein verworfener Zwischenpunkt
+    /// von der vereinfachten Linie haben darf — siehe ``FreehandStroke``.
+    public var smoothingTolerance: CGFloat {
+        switch self {
+        case .pen: return 0.6
+        case .brush: return 1.5
+        case .bucket: return 3
         }
     }
 }
@@ -91,6 +143,9 @@ public final class DocumentStore {
 
     /// Aktives Werkzeug.
     public var activeTool: ToolKind = .select
+
+    /// Aktive Stiftvoreinstellung des Freihand-Werkzeugs.
+    public var freehandBrush: FreehandBrush = .pen
 
     /// Zoomfaktor der Ansicht (1 = 100 %). Gehört zum Ansichtszustand, nicht
     /// zum Dokument, und wird deshalb nicht mitgespeichert.

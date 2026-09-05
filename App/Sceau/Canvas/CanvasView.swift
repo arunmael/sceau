@@ -119,6 +119,8 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         case penHandle
         /// Ein Anker oder Griff eines bestehenden Pfades wird bewegt.
         case editingAnchor(node: UUID, address: AnchorAddress, handle: AnchorHandle)
+        /// Freihand-Werkzeug: die grob abgetastete Zugbewegung, noch ungeglättet.
+        case freehandDrawing(points: [CGPoint])
     }
 
     init(store: DocumentStore) {
@@ -326,7 +328,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     private func cursor(for tool: ToolKind) -> NSCursor {
         switch tool {
         case .select: return .arrow
-        case .rectangle, .ellipse, .polygon, .star, .squircle, .heart, .arrow, .speechBubble, .cross, .pen: return .crosshair
+        case .rectangle, .ellipse, .polygon, .star, .squircle, .heart, .arrow, .speechBubble, .cross, .pen, .freehand: return .crosshair
         case .distort: return .arrow
         case .text: return .iBeam
         }
@@ -447,6 +449,15 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
                 color: .controlAccentColor,
                 dashed: true,
                 filled: true
+            )
+        case let .freehandDrawing(points):
+            // Ungeglättete Vorschau — die eigentliche Glättung (siehe
+            // FreehandStroke) läuft erst beim Loslassen, sonst müsste sie bei
+            // jedem Mausschritt neu rechnen.
+            addStroke(
+                VectorPath(subpath: Subpath(anchors: points.map(Anchor.init(corner:)), isClosed: false)),
+                color: .controlAccentColor,
+                dashed: false
             )
         default:
             break
@@ -677,6 +688,11 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             return
         }
 
+        if store.activeTool == .freehand {
+            interaction = .freehandDrawing(points: [docPoint])
+            return
+        }
+
         if store.activeTool.createsShape {
             interaction = .creating(origin: docPoint, current: docPoint)
             return
@@ -816,6 +832,10 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
                 document.replace(updated)
             }
 
+        case let .freehandDrawing(points):
+            interaction = .freehandDrawing(points: points + [docPoint])
+            rebuildOverlayAnimated()
+
         case .idle:
             break
         }
@@ -843,6 +863,9 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             // Der Zeichenstift bleibt aktiv: Loslassen beendet nur das Ziehen
             // am Griff, nicht den Pfad.
             break
+
+        case let .freehandDrawing(points):
+            commitFreehandStroke(points)
 
         case .idle:
             break
@@ -1070,6 +1093,33 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
         let node = Node(shape: spec)
         store.apply("Form hinzufügen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
+        store.activeTool = .select
+    }
+
+    /// Baut aus der grob abgetasteten Zugbewegung einen geglätteten Pfad
+    /// (siehe ``FreehandStroke``) und legt ihn als neuen Knoten ab.
+    ///
+    /// Anders als beim Zeichenstift bleibt das Werkzeug nicht aktiv — jeder
+    /// Strich ist für sich abgeschlossen, dasselbe Verhalten wie beim
+    /// Aufziehen einer Grundform.
+    private func commitFreehandStroke(_ points: [CGPoint]) {
+        guard !points.isEmpty else { return }
+
+        let brush = store.freehandBrush
+        let path = FreehandStroke.path(from: points, smoothingTolerance: brush.smoothingTolerance)
+        guard !path.isEmpty else { return }
+
+        let node = Node(
+            name: brush.title,
+            style: Style(
+                fill: .none,
+                stroke: Stroke(paint: .solid(.black), width: brush.strokeWidth, cap: .round, join: .round),
+                opacity: brush.opacity
+            ),
+            content: .path(path)
+        )
+        store.apply("Freihand zeichnen") { $0.appendOnTop(node) }
         store.selection = [node.id]
         store.activeTool = .select
     }

@@ -122,6 +122,14 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         store.activeTool = tool
     }
 
+    /// Wählt einen der drei Freihand-Stifte — und mit ihm zugleich das
+    /// Freihand-Werkzeug selbst, ein Klick statt zwei.
+    @objc private func chooseFreehandBrush(_ sender: NSMenuItem) {
+        guard let brush = FreehandBrush(rawValue: sender.representedObject as? String ?? "") else { return }
+        store.freehandBrush = brush
+        store.activeTool = .freehand
+    }
+
     // MARK: - Pathfinder
 
     @objc private func performBooleanOperation(_ sender: NSMenuItem) {
@@ -342,7 +350,10 @@ extension DocumentWindowController: NSToolbarDelegate {
             return menuItem(identifier, title: "Form", symbol: "square.on.circle", menu: shapeMenu())
 
         case ItemID.pen:
-            return button(identifier, title: "Zeichenstift", symbol: "pencil.tip", action: #selector(choosePenTool(_:)))
+            // Bleibt ein einzelnes Bedienelement (siehe "genau sieben" oben):
+            // Freihand-Zeichnen kommt als Menü über denselben Knopf, statt
+            // einen achten Knopf zu brauchen.
+            return menuItem(identifier, title: "Zeichenstift", symbol: "pencil.tip", menu: penMenu())
 
         case ItemID.text:
             return button(identifier, title: "Text", symbol: "textformat", action: #selector(chooseTextTool(_:)))
@@ -392,6 +403,28 @@ extension DocumentWindowController: NSToolbarDelegate {
         item.menu = menu
         item.showsIndicator = true
         return item
+    }
+
+    private func penMenu() -> NSMenu {
+        let menu = NSMenu()
+        let pen = NSMenuItem(title: "Zeichenstift", action: #selector(choosePenTool(_:)), keyEquivalent: "")
+        pen.target = self
+        pen.image = NSImage(systemSymbolName: "pencil.tip", accessibilityDescription: "Zeichenstift")
+        menu.addItem(pen)
+
+        menu.addItem(.separator())
+        for brush in FreehandBrush.allCases {
+            let entry = NSMenuItem(
+                title: "Freihand: \(brush.title)",
+                action: #selector(chooseFreehandBrush(_:)),
+                keyEquivalent: ""
+            )
+            entry.target = self
+            entry.representedObject = brush.rawValue
+            entry.image = NSImage(systemSymbolName: "scribble", accessibilityDescription: brush.title)
+            menu.addItem(entry)
+        }
+        return menu
     }
 
     private func shapeMenu() -> NSMenu {
