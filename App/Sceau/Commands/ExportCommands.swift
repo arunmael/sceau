@@ -35,8 +35,8 @@ enum ExportCommands {
 
     static func exportPNG(from store: DocumentStore, in window: NSWindow, scale: Int) {
         let document = store.document
-        let width = Int((document.artboard.size.width * CGFloat(scale)).rounded())
-        let height = Int((document.artboard.size.height * CGFloat(scale)).rounded())
+        let width = RasterExporter.safePixelLength(document.artboard.size.width, scale: CGFloat(scale))
+        let height = RasterExporter.safePixelLength(document.artboard.size.height, scale: CGFloat(scale))
 
         savePanel(suggested: "Logo.png", type: .png, in: window) { url in
             let data = try RasterExporter.pngData(document, pixelWidth: width, pixelHeight: height)

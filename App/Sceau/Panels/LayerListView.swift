@@ -96,11 +96,16 @@ private struct LayerOutlineRows: View {
         store.apply("Ebene verschieben") { document in
             if let parentID {
                 guard var parent = document.node(id: parentID), let children = parent.children else { return }
-                let byID = Dictionary(uniqueKeysWithValues: children.map { ($0.id, $0) })
+                // `uniquingKeysWith` statt `uniqueKeysWithValues:` — eine von
+                // Hand geänderte oder beschädigte Dokumentdatei kann doppelte
+                // Kennungen enthalten; die harte Vorbedingung würde beim
+                // Ziehen einer Ebene sofort abstürzen statt nur eine der
+                // Dubletten zu verlieren.
+                let byID = Dictionary(children.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 parent.content = .group(children: modelOrder.compactMap { byID[$0] })
                 document.replace(parent)
             } else {
-                let byID = Dictionary(uniqueKeysWithValues: document.nodes.map { ($0.id, $0) })
+                let byID = Dictionary(document.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 document.nodes = modelOrder.compactMap { byID[$0] }
             }
         }

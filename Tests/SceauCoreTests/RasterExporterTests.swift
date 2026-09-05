@@ -185,4 +185,26 @@ struct PDFExporterTests {
         #expect(mediaBox.width == 200)
         #expect(mediaBox.height == 120)
     }
+
+    // MARK: - Sichere Pixel-Umrechnung
+
+    @Test("Normaler Fall: Punkte mal Skalierung, gerundet")
+    func safePixelLengthNormalCase() {
+        #expect(RasterExporter.safePixelLength(100, scale: 2) == 200)
+        #expect(RasterExporter.safePixelLength(33.4, scale: 1) == 33)
+    }
+
+    @Test("Nicht endliche oder nicht positive Werte fallen auf 1 Pixel zurück statt zu crashen")
+    func safePixelLengthHandlesNonFiniteAndNonPositive() {
+        #expect(RasterExporter.safePixelLength(.infinity, scale: 1) == 1)
+        #expect(RasterExporter.safePixelLength(.nan, scale: 1) == 1)
+        #expect(RasterExporter.safePixelLength(-50, scale: 1) == 1)
+        #expect(RasterExporter.safePixelLength(0, scale: 1) == 1)
+        #expect(RasterExporter.safePixelLength(100, scale: .infinity) == 1)
+    }
+
+    @Test("Absurd grosse Zeichenflächen werden auf ein handhabbares Maximum gekappt")
+    func safePixelLengthClampsHugeValues() {
+        #expect(RasterExporter.safePixelLength(1_000_000, scale: 100) == 16384)
+    }
 }

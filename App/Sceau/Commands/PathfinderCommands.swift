@@ -9,11 +9,19 @@ import SceauCore
 @MainActor
 enum PathfinderCommands {
 
+    /// Verhindert, dass ein zweites schnelles Tastenkürzel-Auslösen eine
+    /// weitere, parallel laufende Verknüpfung auf womöglich schon
+    /// veränderter Auswahl startet — ohne diese Sperre könnte eine zweite
+    /// Operation IDs entfernen wollen, die die erste bereits ersetzt hat.
+    private static var isBusy = false
+
     static func perform(
         _ operation: BooleanOperation,
         on store: DocumentStore,
         presentingIn window: NSWindow?
     ) {
+        guard !isBusy else { return }
+
         let selected = store.document.nodes(with: store.selection)
 
         guard selected.count >= 2 else {
@@ -41,7 +49,9 @@ enum PathfinderCommands {
         // Bei vielteiligen Logos kann die Verknüpfung spürbar rechnen. Sie läuft
         // deshalb abseits des Hauptthreads, damit die Oberfläche nicht einfriert
         // (Entwicklungsplan, Abschnitt 2.1).
+        isBusy = true
         Task {
+            defer { isBusy = false }
             let outcome: Result<VectorPath, Error> = await Task.detached(priority: .userInitiated) {
                 do {
                     return .success(try BooleanOperator.apply(operation, subject: subject, clip: clip))

@@ -21,6 +21,27 @@ public enum ExportError: Error, Equatable {
 /// Kommandozeilenwerkzeug) ohne UI-Framework läuft.
 public enum RasterExporter {
 
+    /// Grösste Kantenlänge, die noch bedenkenlos rasterisiert wird.
+    ///
+    /// 16384 px liegt über jedem realistischen Export (selbst Plakatdruck in
+    /// hoher Auflösung) und bleibt unter gängigen GPU-Texturgrenzen — ein
+    /// bewusst grosszügiger, aber endlicher Deckel.
+    private static let maxPixelLength = 16384
+
+    /// Wandelt eine Zeichenflächen-Kantenlänge in Punkten sicher in eine
+    /// Pixel-Kantenlänge um.
+    ///
+    /// `Int(cgFloat)` stürzt bei nicht endlichen oder ausserhalb des
+    /// Wertebereichs liegenden Werten ab — erreichbar über eine von Hand
+    /// geänderte oder beschädigte Dokumentdatei mit einer absurden
+    /// Zeichenflächengrösse, nicht nur über UI-Eingaben. Ein Export darf davon
+    /// nie zum Absturz gebracht werden.
+    public static func safePixelLength(_ points: CGFloat, scale: CGFloat) -> Int {
+        let raw = points * scale
+        guard raw.isFinite, raw > 0 else { return 1 }
+        return Int(min(raw, CGFloat(maxPixelLength)).rounded())
+    }
+
     /// PNG in einer bestimmten Pixelgrösse. Die Zeichenfläche
     /// (`document.artboard.size`) wird auf die Zielgrösse skaliert eingepasst.
     public static func pngData(_ document: Document, pixelWidth: Int, pixelHeight: Int) throws -> Data {

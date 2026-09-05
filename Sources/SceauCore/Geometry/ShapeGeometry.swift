@@ -219,8 +219,16 @@ public enum ShapeGeometry {
 
     // MARK: - Polygon
 
+    /// Obergrenze für Ecken/Zacken. Weit über jedem sinnvollen Gebrauch (der
+    /// Inspektor erlaubt höchstens 24), aber endlich: `sides`/`points` kommen
+    /// aus einer `Codable`-Datei ohne Bereichsprüfung beim Dekodieren — ohne
+    /// Deckel löst ein manipulierter oder beschädigter Wert wie `Int.max`
+    /// einen sofortigen `reserveCapacity`- bzw. Multiplikations-Overflow-Absturz
+    /// aus, noch bevor überhaupt Geometrie berechnet wird.
+    private static let maxPolygonOrStarCount = 1000
+
     private static func polygonPath(frame: CGRect, sides: Int) -> VectorPath {
-        let count = max(3, sides)
+        let count = min(max(3, sides), maxPolygonOrStarCount)
         let center = CGPoint(x: frame.midX, y: frame.midY)
         let a = frame.width / 2
         let b = frame.height / 2
@@ -241,7 +249,7 @@ public enum ShapeGeometry {
     // MARK: - Stern
 
     private static func starPath(frame: CGRect, points: Int, innerRatio: CGFloat) -> VectorPath {
-        let count = max(3, points)
+        let count = min(max(3, points), maxPolygonOrStarCount)
         let ratio = min(1.0, max(0.01, innerRatio))
         let center = CGPoint(x: frame.midX, y: frame.midY)
         let a = frame.width / 2

@@ -21,10 +21,38 @@ public struct RGBAColor: Equatable, Sendable, Codable {
     public static let black = RGBAColor(red: 0, green: 0, blue: 0)
     public static let white = RGBAColor(red: 1, green: 1, blue: 1)
     public static let clear = RGBAColor(red: 0, green: 0, blue: 0, alpha: 0)
+
+    private enum CodingKeys: String, CodingKey { case red, green, blue, alpha }
+
+    /// Von Hand geschrieben statt synthetisiert, damit auch aus einer
+    /// beschädigten oder von Hand geänderten Dokumentdatei dekodierte
+    /// Komponenten durch dieselbe Klemmung laufen wie der normale
+    /// Konstruktor — sonst könnten ausser Reichweite liegende oder nicht
+    /// endliche Werte bis zu einer späteren `Int(...)`-Umwandlung (Hex-Anzeige,
+    /// Prozentanzeige) durchrutschen und dort abstürzen.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            red: try container.decode(Double.self, forKey: .red),
+            green: try container.decode(Double.self, forKey: .green),
+            blue: try container.decode(Double.self, forKey: .blue),
+            alpha: try container.decode(Double.self, forKey: .alpha)
+        )
+    }
 }
 
 private extension Double {
-    var clamped01: Double { Swift.min(1, Swift.max(0, self)) }
+    /// Klemmt auf 0…1 und bildet dabei auch nicht endliche Werte auf einen
+    /// gültigen Rand ab, statt sie (undefiniert) durch den Vergleich laufen
+    /// zu lassen: NaN kennt keine sinnvolle Seite und wird auf 0 abgebildet,
+    /// +/-Infinity auf den jeweils nächstliegenden Rand.
+    var clamped01: Double {
+        guard isFinite else {
+            if isNaN { return 0 }
+            return self > 0 ? 1 : 0
+        }
+        return Swift.min(1, Swift.max(0, self))
+    }
 }
 
 /// Ein Farbstopp eines Verlaufs.
@@ -35,7 +63,27 @@ public struct GradientStop: Equatable, Sendable, Codable {
 
     public init(color: RGBAColor, location: CGFloat) {
         self.color = color
-        self.location = location
+        self.location = location.clampedUnitOrZero
+    }
+
+    private enum CodingKeys: String, CodingKey { case color, location }
+
+    /// Siehe ``RGBAColor/init(from:)`` — dieselbe Absicherung für den
+    /// zweiten Wert, der unmittelbar in eine Prozentanzeige (`Int(...)`)
+    /// einfliesst.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            color: try container.decode(RGBAColor.self, forKey: .color),
+            location: try container.decode(CGFloat.self, forKey: .location)
+        )
+    }
+}
+
+private extension CGFloat {
+    var clampedUnitOrZero: CGFloat {
+        guard isFinite else { return isNaN ? 0 : (self > 0 ? 1 : 0) }
+        return Swift.min(1, Swift.max(0, self))
     }
 }
 

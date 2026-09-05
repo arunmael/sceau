@@ -147,6 +147,16 @@ struct ShapeGeometryTests {
         #expect(path.subpaths[0].anchors.count == 3)
     }
 
+    @Test("Polygon: absurd grosses sides aus einer manipulierten Datei stürzt nicht ab und wird nach oben begrenzt")
+    func polygonSidesClampedToSaneMaximum() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        // Int.max würde ohne Begrenzung reserveCapacity(Int.max) auslösen —
+        // ein sofortiger Absturz noch vor jeder Geometrieberechnung.
+        let path = ShapeGeometry.path(for: .polygon(frame: frame, sides: .max))
+        #expect(path.subpaths[0].anchors.count <= 1000)
+        #expect(path.subpaths[0].anchors.count >= 3)
+    }
+
     // MARK: - Stern
 
     @Test("Stern mit 5 Zacken hat 10 Anker, die im Abstand zum Mittelpunkt alternieren")
@@ -189,6 +199,17 @@ struct ShapeGeometryTests {
         let path = ShapeGeometry.path(for: .star(frame: frame, points: 1, innerRatio: 5))
         // points auf mind. 3 begrenzt -> 6 Anker
         #expect(path.subpaths[0].anchors.count == 6)
+    }
+
+    @Test("Stern: absurd grosses points aus einer manipulierten Datei stürzt nicht ab (kein Overflow bei count * 2)")
+    func starPointsClampedToSaneMaximumAvoidsOverflow() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        // Ohne Begrenzung würde `count * 2` bei Int.max in der Multiplikation
+        // überlaufen und sofort abstürzen (fatal error), noch vor jeder
+        // eigentlichen Geometrieberechnung.
+        let path = ShapeGeometry.path(for: .star(frame: frame, points: .max, innerRatio: 0.5))
+        #expect(path.subpaths[0].anchors.count <= 2000)
+        #expect(path.subpaths[0].anchors.count >= 6)
     }
 
     // MARK: - Squircle (App-Icon-Form)
