@@ -55,6 +55,12 @@ final class CrashReporter: NSObject, @unchecked Sendable {
         }
     }
 
+    /// Berichte, die älter sind, werden beim nächsten Eintreffen eines neuen
+    /// Berichts aufgeräumt. MetricKit liefert höchstens ein-, zweimal täglich
+    /// etwas, ohne diese Grenze wüchse der Ordner über die Lebensdauer der
+    /// Installation trotzdem unbegrenzt weiter.
+    private static let maxReportAge: TimeInterval = 30 * 24 * 60 * 60
+
     private func store(_ data: Data, prefix: String) {
         guard let directory = reportDirectory else { return }
 
@@ -67,6 +73,28 @@ final class CrashReporter: NSObject, @unchecked Sendable {
             log.notice("Diagnosebericht gesichert: \(url.lastPathComponent, privacy: .public)")
         } catch {
             log.error("Diagnosebericht nicht schreibbar: \(error.localizedDescription, privacy: .public)")
+        }
+
+        pruneOldReports(in: directory)
+    }
+
+    /// Löscht Berichte, die älter als ``maxReportAge`` sind.
+    ///
+    /// Beschränkt sich strikt auf den eigenen Diagnoseordner im
+    /// Sandbox-Container — nichts, was ausserhalb davon liegt, wird auch nur
+    /// betrachtet.
+    private func pruneOldReports(in directory: URL) {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) else { return }
+
+        let cutoff = Date().addingTimeInterval(-Self.maxReportAge)
+        for url in entries {
+            guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                  modified < cutoff
+            else { continue }
+            try? FileManager.default.removeItem(at: url)
         }
     }
 }
