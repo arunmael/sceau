@@ -63,6 +63,57 @@ struct RenderingFidelityTests {
         )
     }
 
+    /// Baut eine winzige, einfarbige PNG-Kachel — genug, um zu prüfen, dass
+    /// eine Musterfüllung tatsächlich das Bild und nicht Transparenz oder die
+    /// Grundfarbe zeigt.
+    private func solidColorPNG(red: UInt8, green: UInt8, blue: UInt8) -> Data {
+        var pixels: [UInt8] = []
+        for _ in 0..<16 { pixels.append(contentsOf: [red, green, blue, 255]) }
+        let space = CGColorSpaceCreateDeviceRGB()
+        let data = pixels.withUnsafeMutableBytes { bytes -> Data in
+            let context = CGContext(
+                data: bytes.baseAddress, width: 4, height: 4,
+                bitsPerComponent: 8, bytesPerRow: 16, space: space,
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            )!
+            let image = context.makeImage()!
+            let mutableData = NSMutableData()
+            let destination = CGImageDestinationCreateWithData(mutableData, "public.png" as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, image, nil)
+            CGImageDestinationFinalize(destination)
+            return mutableData as Data
+        }
+        return data
+    }
+
+    @Test("Eine Musterfüllung zeigt die Bildkachel, nicht Transparenz oder eine Grundfarbe")
+    func patternFillRendersImage() throws {
+        let tile = solidColorPNG(red: 20, green: 200, blue: 40)
+        var style = Style()
+        style.fill = .pattern(PatternFill(imageData: tile, tileSize: CGSize(width: 10, height: 10)))
+
+        let p = try render([fullRect(style: style)])
+        let mitte = p(50, 50)
+
+        #expect(mitte.g > 150 && mitte.r < 100 && mitte.a > 200, "erwartet grüne Kachel, war \(mitte)")
+    }
+
+    @Test("Eine gedrehte Musterfüllung mit winzigen Kacheln auf grosser Fläche friert nicht ein")
+    func patternFillWithTinyTilesStaysBounded() throws {
+        let tile = solidColorPNG(red: 255, green: 0, blue: 0)
+        var style = Style()
+        // Bewusst absurd kleine Kachel auf grosser Fläche plus Drehung — genau
+        // der Fall, den der Kachel-Deckel in DocumentRenderer abfangen muss.
+        style.fill = .pattern(PatternFill(imageData: tile, tileSize: CGSize(width: 0.05, height: 0.05), rotation: 0.4))
+
+        let start = Date()
+        let p = try render([fullRect(style: style)], size: 400)
+        let seconds = Date().timeIntervalSince(start)
+
+        #expect(p(200, 200).r > 0)
+        #expect(seconds < 5, "Musterfüllung mit winziger Kachelgrösse dauerte \(seconds) s — Deckel greift nicht?")
+    }
+
     @Test("Ein linearer Verlauf färbt die Ecken unterschiedlich")
     func linearGradientRuns() throws {
         var style = Style()

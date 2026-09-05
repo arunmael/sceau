@@ -104,6 +104,36 @@ struct SVGExporterTests {
         #expect(svg.contains(#"id="\#(referencedID)""#))
     }
 
+    @Test("Musterfüllung erzeugt defs-Block mit eingebettetem Bild und referenzierter ID")
+    func patternProducesDefsWithEmbeddedImage() throws {
+        var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))
+        // Ein einzelnes, minimales 1x1-PNG genügt — es geht hier um die
+        // XML-Struktur, nicht um den Bildinhalt.
+        let onePixelPNG = Data([
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+            0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
+            0x54, 0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00,
+            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+            0x42, 0x60, 0x82
+        ])
+        var style = Style()
+        style.fill = .pattern(PatternFill(imageData: onePixelPNG, tileSize: CGSize(width: 10, height: 10)))
+        document.nodes = [
+            Node(shape: .ellipse(frame: CGRect(x: 0, y: 0, width: 50, height: 50)), style: style)
+        ]
+
+        let svg = SVGExporter.export(document)
+        try assertWellFormed(svg)
+
+        #expect(svg.contains("<pattern"))
+        #expect(svg.contains("<image"))
+        #expect(svg.contains("data:image/png;base64,"))
+    }
+
     @Test("Unsichtbare Knoten fehlen in der Ausgabe")
     func invisibleNodesAreOmitted() throws {
         var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))

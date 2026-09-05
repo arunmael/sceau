@@ -214,7 +214,7 @@ private struct LayerThumbnail: View {
         switch node.style.fill {
         case let .solid(color):
             return Color(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
-        case .linearGradient, .radialGradient:
+        case .linearGradient, .radialGradient, .pattern:
             return .secondary
         case .none:
             return .clear

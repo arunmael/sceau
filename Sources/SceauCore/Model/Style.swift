@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// Eine Farbe im sRGB-Raum mit Alpha, Komponenten jeweils 0…1.
 ///
@@ -104,15 +105,45 @@ public struct Gradient: Equatable, Sendable, Codable {
     }
 }
 
+/// Eine Musterfüllung: ein einzelnes Bild, das kachelnd wiederholt wird.
+///
+/// Bewusst **kein** eigener Pattern-Editor mit mehreren Ebenen, Deckkraft pro
+/// Kachel o.ä. — genau eine Bildkachel mit Grösse und Drehung ist alles, was
+/// laut Entwicklungsplan (Abschnitt 5.4, revidiert) dazugehört.
+///
+/// Das Bild liegt als kodierte Bilddaten (PNG/JPEG) direkt im Dokument statt
+/// als Dateipfad — nur so bleibt ein `.sceau`-Dokument in sich abgeschlossen
+/// und teilbar, ohne dass eine referenzierte Bilddatei fehlen kann.
+public struct PatternFill: Equatable, Sendable, Codable {
+    /// Kodierte Bilddaten (PNG oder JPEG) einer einzelnen Kachel.
+    public var imageData: Data
+    /// Grösse einer Kachel in Dokumentpunkten.
+    public var tileSize: CGSize
+    /// Drehung der gesamten Kachelung, im Bogenmass.
+    public var rotation: CGFloat
+
+    public init(imageData: Data, tileSize: CGSize, rotation: CGFloat = 0) {
+        self.imageData = imageData
+        // Eine Kachelgrösse von 0 oder darunter liesse eine Kachelschleife
+        // entweder nie enden oder durch null teilen — deshalb hier schon auf
+        // einen sinnvollen Mindestwert geklemmt statt das dem Renderer zu
+        // überlassen.
+        self.tileSize = CGSize(width: max(1, tileSize.width), height: max(1, tileSize.height))
+        self.rotation = rotation.isFinite ? rotation : 0
+    }
+}
+
 /// Womit eine Fläche oder eine Kontur gefüllt wird.
 ///
-/// Mesh-Verläufe und Musterfüllungen sind laut Entwicklungsplan bewusst nicht
-/// Teil des Funktionsumfangs.
+/// Mesh-Verläufe sind laut Entwicklungsplan bewusst nicht Teil des
+/// Funktionsumfangs; Musterfüllungen (in dieser stark reduzierten Form ohne
+/// eigenen Editor) wurden nachträglich aufgenommen, siehe ``PatternFill``.
 public enum Paint: Equatable, Sendable, Codable {
     case none
     case solid(RGBAColor)
     case linearGradient(Gradient)
     case radialGradient(Gradient)
+    case pattern(PatternFill)
 }
 
 /// Art der Konturenden.

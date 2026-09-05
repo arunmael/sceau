@@ -97,7 +97,34 @@ enum CanvasRenderer {
             mask.path = path.copy(using: &shift)
             gradientLayer.mask = mask
             return gradientLayer
+
+        case let .pattern(fill):
+            return makePatternLayer(path: path, fill: fill, fillRule: style.fillRule)
         }
+    }
+
+    /// Musterfüllung als Bild-Layer, maskiert von der Kontur — `CAShapeLayer`
+    /// kennt keine Musterfüllung, das ist derselbe Maskierungsansatz wie bei
+    /// Verläufen (siehe ``makeFillLayer(path:paint:style:)``).
+    private static func makePatternLayer(path: CGPath, fill: PatternFill, fillRule: FillRule) -> CALayer? {
+        let bounds = path.boundingBoxOfPath
+        guard bounds.width > 0, bounds.height > 0,
+              let image = DocumentRenderer.patternImage(for: fill, bounds: bounds)
+        else { return nil }
+
+        let imageLayer = CALayer()
+        imageLayer.frame = bounds
+        imageLayer.contents = image
+
+        let mask = CAShapeLayer()
+        mask.frame = CGRect(origin: .zero, size: bounds.size)
+        mask.fillColor = NSColor.black.cgColor
+        mask.fillRule = fillRule == .evenOdd ? .evenOdd : .nonZero
+        var shift = CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY)
+        mask.path = path.copy(using: &shift)
+        imageLayer.mask = mask
+
+        return imageLayer
     }
 
     // MARK: - Kontur
@@ -129,6 +156,12 @@ enum CanvasRenderer {
             shape.path = path.copy(using: &shift)
             gradientLayer.mask = shape
             return gradientLayer
+        case .pattern:
+            // Musterkonturen sind über das Datenmodell zwar denkbar, aber
+            // wie Verlaufskonturen kein eigenes Werkzeug — analog zu
+            // DocumentRenderer.drawStroke bleibt hier nichts sichtbar,
+            // statt eine ungetestete Musterkontur zu erfinden.
+            return nil
         }
     }
 

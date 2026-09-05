@@ -1,4 +1,6 @@
 import CoreGraphics
+import Foundation
+import ImageIO
 
 /// Zeichnet ein ``Document`` in einen beliebigen `CGContext` — die gemeinsame
 /// Rendergrundlage für PNG- und PDF-Export.
@@ -76,7 +78,114 @@ public enum DocumentRenderer {
 
         case let .radialGradient(gradient):
             drawGradient(gradient, radial: true, path: path, fillRule: style.fillRule, in: context)
+
+        case let .pattern(fill):
+            drawPattern(fill, path: path, fillRule: style.fillRule, in: context)
         }
+    }
+
+    /// Höchstzahl an Kacheln, die für eine einzelne Füllung gezeichnet werden.
+    ///
+    /// Ohne Deckel könnte eine winzige `tileSize` auf einer grossen
+    /// Zeichenfläche (aus einer von Hand geänderten Datei oder einfach einem
+    /// zu klein eingestellten Regler) die Kachelschleife praktisch endlos
+    /// laufen lassen — die App fröre ein, statt nur unschön statt korrekt
+    /// gekachelt darzustellen.
+    private static let maxPatternTiles = 4096
+
+    /// Zeichnet eine Musterfüllung, indem der Kontext auf den Pfad geklippt
+    /// und die Bildkachel darüber wiederholt gezeichnet wird — derselbe
+    /// Klip-Ansatz wie bei ``drawGradient``, weil `CGContext` auch für
+    /// Musterfüllungen keine direkte "beliebige Kontur"-API kennt.
+    private static func drawPattern(
+        _ fill: PatternFill,
+        path: VectorPath,
+        fillRule: FillRule,
+        in context: CGContext
+    ) {
+        let bounds = path.bounds
+        guard !bounds.isNull, bounds.width > 0, bounds.height > 0 else { return }
+        guard fill.tileSize.width > 0, fill.tileSize.height > 0 else { return }
+        guard let image = Self.decodedImage(from: fill.imageData) else { return }
+
+        context.saveGState()
+        context.addPath(path.cgPath)
+        context.clip(using: cgFillRule(fillRule))
+
+        // Im gedrehten Koordinatensystem gearbeitet, damit die Kachelung auch
+        // nach einer Drehung lückenlos bleibt: Der Klip-Pfad selbst dreht sich
+        // nicht mit, nur das Raster, in dem gekachelt wird.
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        context.translateBy(x: center.x, y: center.y)
+        context.rotate(by: fill.rotation)
+        context.translateBy(x: -center.x, y: -center.y)
+
+        // Ein Kreis um den Mittelpunkt mit Radius der Bounds-Diagonale deckt
+        // die sichtbare Fläche bei jeder Drehung sicher ab.
+        let diagonal = (bounds.width * bounds.width + bounds.height * bounds.height).squareRoot()
+        let columns = max(1, min(Int((2 * diagonal / fill.tileSize.width).rounded(.up)), maxPatternTiles))
+        let rows = max(1, min(Int((2 * diagonal / fill.tileSize.height).rounded(.up)), maxPatternTiles))
+        let startX = center.x - CGFloat(columns) * fill.tileSize.width / 2
+        let startY = center.y - CGFloat(rows) * fill.tileSize.height / 2
+
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let tileRect = CGRect(
+                    x: startX + CGFloat(column) * fill.tileSize.width,
+                    y: startY + CGFloat(row) * fill.tileSize.height,
+                    width: fill.tileSize.width,
+                    height: fill.tileSize.height
+                )
+                context.draw(image, in: tileRect)
+            }
+        }
+
+        context.restoreGState()
+    }
+
+    /// Dekodiert Bilddaten über ImageIO statt `NSImage` — `SceauCore` bleibt
+    /// dadurch frei von einer AppKit-Abhängigkeit (siehe Kopfkommentar).
+    private static func decodedImage(from data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// Rendert eine Musterfüllung freistehend als Bitmap in der Grösse von
+    /// `bounds`, ohne auf eine Kontur geklippt zu sein.
+    ///
+    /// Für den Live-Canvas gedacht: `CAShapeLayer` kennt keine Musterfüllung,
+    /// die Live-Darstellung maskiert deshalb — genau wie bei Verläufen — ein
+    /// einfaches Bild-Layer mit der Kontur. Dieselbe Kachel-Logik wie beim
+    /// Export (inklusive Deckel gegen eine ausufernde Kachelzahl) kommt so
+    /// ohne Duplikation aus.
+    public static func patternImage(for fill: PatternFill, bounds: CGRect) -> CGImage? {
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: max(1, Int(bounds.width.rounded(.up))),
+            height: max(1, Int(bounds.height.rounded(.up))),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // Der Rechteckpfad selbst dient nur als (nicht sichtbar wirkender)
+        // "Klip" über die volle Bitmap — die eigentliche Kontur maskiert der
+        // Aufrufer separat als CALayer-Maske.
+        let localBounds = CGRect(origin: .zero, size: bounds.size)
+        let rectPath = VectorPath(subpath: Subpath(
+            anchors: [
+                Anchor(corner: CGPoint(x: localBounds.minX, y: localBounds.minY)),
+                Anchor(corner: CGPoint(x: localBounds.maxX, y: localBounds.minY)),
+                Anchor(corner: CGPoint(x: localBounds.maxX, y: localBounds.maxY)),
+                Anchor(corner: CGPoint(x: localBounds.minX, y: localBounds.maxY))
+            ],
+            isClosed: true
+        ))
+        drawPattern(fill, path: rectPath, fillRule: .nonZero, in: context)
+        return context.makeImage()
     }
 
     /// Zeichnet einen Verlauf, indem der Kontext auf den Pfad geklippt und

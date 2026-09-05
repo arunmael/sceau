@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwiftUI
 import SceauCore
 
@@ -498,6 +499,7 @@ private struct FillSection: View {
                 Text("Vollton").tag(FillKind.solid)
                 Text("Linearer Verlauf").tag(FillKind.linear)
                 Text("Radialer Verlauf").tag(FillKind.radial)
+                Text("Muster").tag(FillKind.pattern)
             }
 
             if let current {
@@ -510,6 +512,8 @@ private struct FillSection: View {
                     GradientStopsEditor(gradient: gradient, store: store) { updated in
                         apply(makePaint(likeCurrent: current, gradient: updated))
                     }
+                case let .pattern(fill):
+                    PatternControls(fill: fill) { apply(.pattern($0)) }
                 }
             }
         }
@@ -557,7 +561,7 @@ private struct FillSection: View {
 }
 
 private enum FillKind: Hashable {
-    case none, solid, linear, radial, mixed
+    case none, solid, linear, radial, pattern, mixed
 
     init(_ paint: Paint?) {
         guard let paint else { self = .mixed; return }
@@ -566,6 +570,7 @@ private enum FillKind: Hashable {
         case .solid: self = .solid
         case .linearGradient: self = .linear
         case .radialGradient: self = .radial
+        case .pattern: self = .pattern
         }
     }
 
@@ -582,6 +587,9 @@ private enum FillKind: Hashable {
         case .radial:
             if case let .radialGradient(gradient) = current { return .radialGradient(gradient) }
             return .radialGradient(Self.defaultGradient)
+        case .pattern:
+            if case let .pattern(fill) = current { return .pattern(fill) }
+            return .pattern(Self.defaultPattern)
         case .mixed:
             return current ?? .none
         }
@@ -595,6 +603,93 @@ private enum FillKind: Hashable {
         start: CGPoint(x: 0, y: 0),
         end: CGPoint(x: 1, y: 1)
     )
+
+    /// Ein 1×1-Platzhalterbild, bis der Nutzer über den Bild-Wähler eine
+    /// eigene Kachel setzt — ein Muster ganz ohne Bild wäre unsichtbar und
+    /// liesse den frisch gewählten Picker-Eintrag wirkungslos aussehen.
+    private static let defaultPattern = PatternFill(
+        imageData: placeholderPatternImageData,
+        tileSize: CGSize(width: 32, height: 32)
+    )
+}
+
+/// Ein einzelnes graues 1×1-PNG als Platzhalterkachel. Bewusst eine freie
+/// Konstante ausserhalb jeder `View` — sonst zieht die Isolationsprüfung des
+/// Compilers hier fälschlich `@MainActor` heran, obwohl reines Core-Graphics-
+/// und ImageIO-Zeichnen keinerlei UI-Zustand anfasst.
+private let placeholderPatternImageData: Data = {
+    let space = CGColorSpaceCreateDeviceRGB()
+    var pixel: [UInt8] = [180, 180, 180, 255]
+    return pixel.withUnsafeMutableBytes { bytes in
+        guard let context = CGContext(
+            data: bytes.baseAddress, width: 1, height: 1,
+            bitsPerComponent: 8, bytesPerRow: 4, space: space,
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ), let image = context.makeImage() else { return Data() }
+        let mutableData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(mutableData, "public.png" as CFString, 1, nil)
+        else { return Data() }
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
+        return mutableData as Data
+    }
+}()
+
+// MARK: - Muster
+
+private struct PatternControls: View {
+    let fill: PatternFill
+    let onChange: (PatternFill) -> Void
+
+    var body: some View {
+        LabeledContent("Bild") {
+            Button("Bild wählen…") { chooseImage() }
+        }
+        LabeledContent("Kachelgrösse") {
+            HStack(spacing: 4) {
+                TextField("Breite", value: widthBinding, format: .number).frame(width: 50)
+                Text("×")
+                TextField("Höhe", value: heightBinding, format: .number).frame(width: 50)
+            }
+        }
+        LabeledContent("Drehung") {
+            Slider(value: rotationBinding, in: 0...360)
+        }
+    }
+
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url)
+        else { return }
+        var updated = fill
+        updated.imageData = data
+        onChange(updated)
+    }
+
+    private var widthBinding: Binding<Double> {
+        Binding(
+            get: { Double(fill.tileSize.width) },
+            set: { var f = fill; f.tileSize.width = max(1, CGFloat($0)); onChange(f) }
+        )
+    }
+
+    private var heightBinding: Binding<Double> {
+        Binding(
+            get: { Double(fill.tileSize.height) },
+            set: { var f = fill; f.tileSize.height = max(1, CGFloat($0)); onChange(f) }
+        )
+    }
+
+    private var rotationBinding: Binding<Double> {
+        Binding(
+            get: { Double(fill.rotation * 180 / .pi) },
+            set: { var f = fill; f.rotation = CGFloat($0) * .pi / 180; onChange(f) }
+        )
+    }
 }
 
 /// Editierbare Farbstopps eines Verlaufs — Start-/Endpunkt bleiben fix auf der

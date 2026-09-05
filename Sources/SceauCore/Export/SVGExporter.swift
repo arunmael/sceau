@@ -182,6 +182,10 @@ public enum SVGExporter {
         case let .radialGradient(gradient):
             let id = context.registerRadialGradient(gradient)
             return [(prefix, "url(#\(id))")]
+
+        case let .pattern(fill):
+            let id = context.registerPattern(fill)
+            return [(prefix, "url(#\(id))")]
         }
     }
 
@@ -227,6 +231,18 @@ public enum SVGExporter {
 
     private static func coord(_ point: CGPoint, decimals: Int) -> String {
         "\(format(point.x, decimals: decimals)),\(format(point.y, decimals: decimals))"
+    }
+
+    /// Erkennt PNG/JPEG an der Signatur der ersten Bytes statt an einer
+    /// mitgeführten, potenziell veralteten Typangabe — Bilddaten sind im
+    /// Dokumentmodell nur `Data`, ihr tatsächlicher Inhalt entscheidet.
+    private static func imageMIMEType(for data: Data) -> String {
+        let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
+        if data.starts(with: pngSignature) { return "image/png" }
+        if data.count >= 2, data[data.startIndex] == 0xFF, data[data.startIndex + 1] == 0xD8 {
+            return "image/jpeg"
+        }
+        return "image/png"
     }
 
     private static func hex(_ color: RGBAColor) -> String {
@@ -280,6 +296,32 @@ public enum SVGExporter {
             return id
         }
 
+        /// Trägt eine Musterfüllung als `<pattern>` mit eingebettetem
+        /// Base64-Bild ein. `patternUnits="userSpaceOnUse"` statt der bei
+        /// Verläufen verwendeten `objectBoundingBox`, weil die Kachelgrösse
+        /// in Dokumentpunkten gemeint ist, nicht als Anteil des Hüllrahmens
+        /// der jeweiligen Form — sonst sähe dieselbe Musterfüllung auf zwei
+        /// unterschiedlich grossen Formen unterschiedlich gekachelt aus.
+        mutating func registerPattern(_ fill: PatternFill) -> String {
+            let id = nextGradientID(prefix: "pattern")
+            let width = SVGExporter.format(fill.tileSize.width, decimals: max(decimals, 2))
+            let height = SVGExporter.format(fill.tileSize.height, decimals: max(decimals, 2))
+            let base64 = fill.imageData.base64EncodedString()
+            let mime = SVGExporter.imageMIMEType(for: fill.imageData)
+
+            var xml = "<pattern id=\"\(id)\" patternUnits=\"userSpaceOnUse\""
+            xml += " width=\"\(width)\" height=\"\(height)\""
+            if fill.rotation != 0 {
+                let degrees = SVGExporter.format(fill.rotation * 180 / .pi, decimals: max(decimals, 2))
+                xml += " patternTransform=\"rotate(\(degrees))\""
+            }
+            xml += ">"
+            xml += "<image href=\"data:\(mime);base64,\(base64)\" width=\"\(width)\" height=\"\(height)\"/>"
+            xml += "</pattern>"
+            defs.append(xml)
+            return id
+        }
+
         mutating func registerRadialGradient(_ gradient: Gradient) -> String {
             let id = nextGradientID()
             let dx = gradient.end.x - gradient.start.x
@@ -296,9 +338,9 @@ public enum SVGExporter {
             return id
         }
 
-        private mutating func nextGradientID() -> String {
+        private mutating func nextGradientID(prefix: String = "gradient") -> String {
             defer { gradientCounter += 1 }
-            return "gradient\(gradientCounter)"
+            return "\(prefix)\(gradientCounter)"
         }
 
         /// Baut eine Zeile mit passender Einrückung; ohne `prettyPrinted` wird
