@@ -19,20 +19,27 @@ enum ClipboardCommands {
 
     // MARK: - Lesen und Schreiben
 
-    static func copy(from store: DocumentStore, to pasteboard: NSPasteboard = .general) {
-        let nodes = store.document.nodes.filter { store.selection.contains($0.id) }
-        guard !nodes.isEmpty else { return }
+    /// - Returns: `true`, wenn tatsächlich etwas auf die Zwischenablage kam.
+    ///   `cut` darf ohne dieses Ergebnis nichts aus dem Dokument entfernen —
+    ///   sonst ginge Inhalt ersatzlos verloren.
+    @discardableResult
+    static func copy(from store: DocumentStore, to pasteboard: NSPasteboard = .general) -> Bool {
+        // `document.nodes` ist nur die oberste Ebene — eine Auswahl innerhalb
+        // einer Gruppe fände sich darin nicht wieder. `nodes(with:)` sucht
+        // beliebig tief, genau wie das rekursive `remove(ids:)`, das cut
+        // anschliessend aufruft.
+        let nodes = store.document.nodes(with: store.selection)
+        guard !nodes.isEmpty, let data = try? JSONEncoder().encode(nodes) else { return false }
 
-        guard let data = try? JSONEncoder().encode(nodes) else { return }
         pasteboard.clearContents()
         pasteboard.setData(data, forType: pasteboardType)
+        return true
     }
 
     static func cut(from store: DocumentStore, to pasteboard: NSPasteboard = .general) {
         let ids = store.selection
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty, copy(from: store, to: pasteboard) else { return }
 
-        copy(from: store, to: pasteboard)
         store.apply("Ausschneiden") { $0.remove(ids: ids) }
         store.clearSelection()
     }
@@ -54,7 +61,7 @@ enum ClipboardCommands {
     /// Bewusst getrennt vom Kopieren: Wer etwas dupliziert, will meist nicht,
     /// dass dabei der Inhalt seiner Zwischenablage verloren geht.
     static func duplicate(in store: DocumentStore) {
-        let nodes = store.document.nodes.filter { store.selection.contains($0.id) }
+        let nodes = store.document.nodes(with: store.selection)
         guard !nodes.isEmpty else { return }
 
         var inserted: [UUID] = []

@@ -312,7 +312,9 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
               let box = singleSelectionBounds()
         else { return }
         let viewBox = viewRect(from: box)
-        let half = Self.handleScreenSize
+        // Deckungsgleich mit der Trefferzone in `handle(at:)` — dort ist
+        // `handleScreenSize` bereits die volle Kantenlänge, `/2` der Radius.
+        let half = Self.handleScreenSize / 2
         let handles = store.activeTool == .distort ? ResizeHandle.allCases.filter(\.isCorner) : ResizeHandle.allCases
         for handle in handles {
             let center = handle.position(in: viewBox)
@@ -796,15 +798,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             applyLive { document in
                 for (id, original) in originals {
                     guard document.node(id: id) != nil else { continue }
-                    // Verziehen ist nicht affin — eine parametrische Grundform
-                    // (oder ihre Rotation) liesse sich danach nicht mehr sinnvoll
-                    // ausdrücken. Wie bei booleschen Verknüpfungen wird deshalb
-                    // die aufgelöste, bereits rotierte Kontur festgeschrieben.
-                    let resolved = NodeGeometry.path(for: original)
-                    var updated = original
-                    updated.content = .path(FreeDistortion.warped(resolved, from: startBounds, to: targetCorners))
-                    updated.rotation = 0
-                    document.replace(updated)
+                    document.replace(NodeTransform.distorted(original, from: startBounds, to: targetCorners))
                 }
             }
 

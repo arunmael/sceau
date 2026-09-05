@@ -130,4 +130,76 @@ struct NodeTransformTests {
         }
         #expect(spec.fontSize == 20)
     }
+
+    // MARK: - Verzerren
+
+    @Test("Verzerren einer Einzelform löst sie in einen Pfad auf und setzt die Rotation zurück")
+    func distortingShapeResolvesToPathAndResetsRotation() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+        let node = Node(name: "Rechteck", rotation: 0.3, content: .shape(.rectangle(frame: frame, cornerRadius: 0)))
+        let corners = QuadCorners(
+            topLeft: CGPoint(x: -10, y: 0), topRight: CGPoint(x: 110, y: 0),
+            bottomRight: CGPoint(x: 100, y: 60), bottomLeft: CGPoint(x: 0, y: 60)
+        )
+        // Frame muss die tatsächlich gerenderte (rotierte) Kontur sein, sonst
+        // passt die Quelle nicht zu dem, was der Nutzer beim Ziehen sieht.
+        let source = NodeGeometry.bounds(for: node)
+
+        let distorted = NodeTransform.distorted(node, from: source, to: corners)
+
+        guard case .path = distorted.content else {
+            Issue.record("Verzerren muss die Form in einen Pfad auflösen — nicht affin, nicht mehr parametrisch")
+            return
+        }
+        #expect(distorted.rotation == 0)
+    }
+
+    @Test("Verzerren einer unrotierten Gruppe behält die Gruppenstruktur und die Einzelstile der Kinder")
+    func distortingUnrotatedGroupPreservesChildrenAndTheirStyles() {
+        let redStyle = Style(fill: .solid(RGBAColor(red: 1, green: 0, blue: 0)))
+        let blueStyle = Style(fill: .solid(RGBAColor(red: 0, green: 0, blue: 1)))
+        let red = Node(name: "Rot", style: redStyle, content: .shape(.rectangle(frame: CGRect(x: 0, y: 0, width: 50, height: 50), cornerRadius: 0)))
+        let blue = Node(name: "Blau", style: blueStyle, content: .shape(.rectangle(frame: CGRect(x: 50, y: 0, width: 50, height: 50), cornerRadius: 0)))
+        let group = Node(name: "Gruppe", rotation: 0, content: .group(children: [red, blue]))
+
+        let source = CGRect(x: 0, y: 0, width: 100, height: 50)
+        let corners = QuadCorners(
+            topLeft: .zero, topRight: CGPoint(x: 120, y: 0),
+            bottomRight: CGPoint(x: 100, y: 60), bottomLeft: CGPoint(x: 0, y: 60)
+        )
+
+        let distorted = NodeTransform.distorted(group, from: source, to: corners)
+
+        guard case let .group(children) = distorted.content else {
+            Issue.record("Eine unrotierte Gruppe muss nach dem Verzerren weiterhin eine Gruppe sein")
+            return
+        }
+        #expect(children.count == 2)
+        #expect(children[0].style == redStyle, "Der eigene Stil des ersten Kindes darf nicht verloren gehen")
+        #expect(children[1].style == blueStyle, "Der eigene Stil des zweiten Kindes darf nicht verloren gehen")
+        for child in children {
+            guard case .path = child.content else {
+                Issue.record("Jedes Kind muss einzeln in einen Pfad aufgelöst sein")
+                return
+            }
+        }
+    }
+
+    @Test("Verzerren einer rotierten Gruppe schreibt sie als einen Pfad mit dem Gruppenstil fest")
+    func distortingRotatedGroupFallsBackToFlattenedPath() {
+        let red = Node(name: "Rot", style: Style(fill: .solid(.black)), content: .shape(.rectangle(frame: CGRect(x: 0, y: 0, width: 50, height: 50), cornerRadius: 0)))
+        let groupStyle = Style(fill: .solid(RGBAColor(red: 0, green: 1, blue: 0)))
+        let group = Node(name: "Gruppe", rotation: 0.2, style: groupStyle, content: .group(children: [red]))
+        let source = NodeGeometry.bounds(for: group)
+        let corners = QuadCorners(rect: source)
+
+        let distorted = NodeTransform.distorted(group, from: source, to: corners)
+
+        guard case .path = distorted.content else {
+            Issue.record("Eine rotierte Gruppe lässt sich nicht ohne Weiteres pro Kind verzerren — bekannte Einschränkung, siehe Kommentar in NodeTransform")
+            return
+        }
+        #expect(distorted.style == groupStyle)
+        #expect(distorted.rotation == 0)
+    }
 }

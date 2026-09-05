@@ -13,14 +13,19 @@ enum PathfinderCommands {
     /// weitere, parallel laufende Verknüpfung auf womöglich schon
     /// veränderter Auswahl startet — ohne diese Sperre könnte eine zweite
     /// Operation IDs entfernen wollen, die die erste bereits ersetzt hat.
-    private static var isBusy = false
+    ///
+    /// Pro Dokument, nicht pro Prozess: sonst würde eine laufende Verknüpfung
+    /// in einem Fenster jede Pathfinder-Aktion in jedem anderen offenen
+    /// Dokument stillschweigend blockieren.
+    private static var busyStores: Set<ObjectIdentifier> = []
 
     static func perform(
         _ operation: BooleanOperation,
         on store: DocumentStore,
         presentingIn window: NSWindow?
     ) {
-        guard !isBusy else { return }
+        let storeKey = ObjectIdentifier(store)
+        guard !busyStores.contains(storeKey) else { return }
 
         let selected = store.document.nodes(with: store.selection)
 
@@ -45,13 +50,18 @@ enum PathfinderCommands {
         let removedIDs = Set(selected.map(\.id))
         let resultStyle = subjectNode.style
         let resultName = name(for: operation)
+        // Vergleichswert, um ein zwischenzeitlich durch den Nutzer verändertes
+        // Dokument zu erkennen — sonst könnte das verspätete Ergebnis einer
+        // inzwischen überholten Berechnung Bearbeitungen überschreiben, die
+        // währenddessen passiert sind (Verschieben, Löschen, Undo, …).
+        let documentAtStart = store.document
 
         // Bei vielteiligen Logos kann die Verknüpfung spürbar rechnen. Sie läuft
         // deshalb abseits des Hauptthreads, damit die Oberfläche nicht einfriert
         // (Entwicklungsplan, Abschnitt 2.1).
-        isBusy = true
+        busyStores.insert(storeKey)
         Task {
-            defer { isBusy = false }
+            defer { busyStores.remove(storeKey) }
             let outcome: Result<VectorPath, Error> = await Task.detached(priority: .userInitiated) {
                 do {
                     return .success(try BooleanOperator.apply(operation, subject: subject, clip: clip))
@@ -59,6 +69,11 @@ enum PathfinderCommands {
                     return .failure(error)
                 }
             }.value
+
+            // Das Dokument hat sich während der Berechnung verändert — das
+            // Ergebnis passt nicht mehr zu dem, was der Nutzer inzwischen sieht.
+            // Lieber verwerfen als etwas Falsches oder Überholtes einsetzen.
+            guard store.document == documentAtStart else { return }
 
             switch outcome {
             case let .success(path):

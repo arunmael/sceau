@@ -140,4 +140,35 @@ public enum NodeTransform {
 
         return result
     }
+
+    /// Verzieht einen Knoten frei über vier unabhängige Eckpunkte.
+    ///
+    /// Anders als `moved`/`mirrored`/`resized` ist eine freie Verzerrung nicht
+    /// affin — für eine Einzelform oder einen Pfad gibt es danach keine
+    /// sinnvolle parametrische oder rotierte Darstellung mehr, das Ergebnis
+    /// wird deshalb immer ein Pfad mit Rotation 0.
+    ///
+    /// Bei einer **unrotierten** Gruppe bleibt die Struktur erhalten: jedes
+    /// Kind wird einzeln mit demselben Rahmen/Zielviereck verzogen und behält
+    /// dabei seinen eigenen Stil — sonst ginge beim Verzerren eines aus
+    /// mehreren unterschiedlich gefüllten Formen bestehenden Logos die
+    /// gesamte Farbgebung verloren. Bei einer **rotierten** Gruppe liesse sich
+    /// das nur korrekt lösen, indem jedes Kind zuerst um das unrotierte
+    /// Gruppenzentrum vorgedreht würde — dafür fehlt bislang die Grundlage;
+    /// bekannte, akzeptierte Einschränkung analog zu `resized` bei rotierten
+    /// Einzelobjekten. Eine rotierte Gruppe wird deshalb wie eine Einzelform
+    /// behandelt: ein Pfad mit dem bisherigen Gruppenstil.
+    public static func distorted(_ node: Node, from sourceRect: CGRect, to corners: QuadCorners) -> Node {
+        var result = node
+
+        if case let .group(children) = node.content, node.rotation == 0 {
+            result.content = .group(children: children.map { distorted($0, from: sourceRect, to: corners) })
+            return result
+        }
+
+        let resolved = NodeGeometry.path(for: node)
+        result.content = .path(FreeDistortion.warped(resolved, from: sourceRect, to: corners))
+        result.rotation = 0
+        return result
+    }
 }

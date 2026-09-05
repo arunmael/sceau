@@ -98,6 +98,9 @@ enum MainMenuBuilder {
         // taucht "Wiederholen" trotzdem nur einmal sichtbar im Menü auf.
         let redoAlternate = item("Wiederholen", Selector(("redo:")), "y")
         redoAlternate.isHidden = true
+        // Ohne das hier ignoriert AppKit das Tastenkürzel ausgeblendeter
+        // Menüeinträge komplett — ⌘Y bliebe sonst wirkungslos.
+        redoAlternate.allowsKeyEquivalentWhenHidden = true
         menu.addItem(redoAlternate)
         menu.addItem(.separator())
         menu.addItem(item("Ausschneiden", #selector(NSText.cut(_:)), "x"))
