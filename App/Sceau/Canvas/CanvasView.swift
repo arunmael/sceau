@@ -267,7 +267,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     private func cursor(for tool: ToolKind) -> NSCursor {
         switch tool {
         case .select: return .arrow
-        case .rectangle, .ellipse, .polygon, .star, .pen: return .crosshair
+        case .rectangle, .ellipse, .polygon, .star, .squircle, .pen: return .crosshair
         case .text: return .iBeam
         }
     }
