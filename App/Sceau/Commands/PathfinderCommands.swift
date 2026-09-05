@@ -19,6 +19,13 @@ enum PathfinderCommands {
     /// Dokument stillschweigend blockieren.
     private static var busyStores: Set<ObjectIdentifier> = []
 
+    /// Für die Menüvalidierung: läuft für dieses Dokument bereits eine
+    /// Verknüpfung, macht ein weiterer Klick nichts Sichtbares — der
+    /// Menübefehl soll das schon vorher zeigen, statt einfach zu verpuffen.
+    static func isBusy(for store: DocumentStore) -> Bool {
+        busyStores.contains(ObjectIdentifier(store))
+    }
+
     static func perform(
         _ operation: BooleanOperation,
         on store: DocumentStore,

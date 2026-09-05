@@ -277,7 +277,25 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
                 break
             }
         }
-        return true
+
+        // Ein aktivierter, aber wirkungsloser Befehl ("Gruppieren" mit einem
+        // Objekt, Pathfinder während er schon läuft) ist verwirrender als ein
+        // ausgegrauter — der Nutzer sieht sonst nicht, warum nichts passiert.
+        switch item.action {
+        case #selector(groupSelection(_:)):
+            return store.selection.count >= 2
+        case #selector(ungroupSelection(_:)):
+            return store.document.nodes(with: store.selection).contains(where: \.isGroup)
+        case #selector(performBooleanOperationFromMenu(_:)), #selector(performBooleanOperation(_:)):
+            return store.selection.count >= 2 && !PathfinderCommands.isBusy(for: store)
+        case #selector(convertTextToOutlines(_:)):
+            return store.document.nodes(with: store.selection).contains { node in
+                if case .text = node.content { return true }
+                return false
+            }
+        default:
+            return true
+        }
     }
 }
 
