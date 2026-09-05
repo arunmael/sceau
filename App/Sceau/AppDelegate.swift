@@ -143,6 +143,12 @@ enum MainMenuBuilder {
             "o",
             modifiers: [.command, .shift]
         ))
+        menu.addItem(item(
+            "Verzerren",
+            #selector(DocumentWindowController.chooseDistortTool(_:)),
+            "k",
+            modifiers: [.command, .shift]
+        ))
         return menu
     }
 

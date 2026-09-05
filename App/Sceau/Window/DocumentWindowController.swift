@@ -110,6 +110,13 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         store.activeTool = .text
     }
 
+    /// Kein eigener Werkzeugleisten-Knopf — laut Entwicklungsplan sind genau
+    /// sieben sichtbare Bedienelemente das Limit. Das Verzerren-Werkzeug ist
+    /// selten genug im Einsatz, dass ein Menübefehl reicht.
+    @objc func chooseDistortTool(_ sender: Any?) {
+        store.activeTool = .distort
+    }
+
     @objc private func chooseShapeTool(_ sender: NSMenuItem) {
         guard let tool = ToolKind(rawValue: sender.representedObject as? String ?? "") else { return }
         store.activeTool = tool
@@ -371,7 +378,7 @@ extension DocumentWindowController: NSToolbarDelegate {
 
     private func shapeMenu() -> NSMenu {
         let menu = NSMenu()
-        for tool in [ToolKind.rectangle, .ellipse, .polygon, .star] {
+        for tool in [ToolKind.rectangle, .ellipse, .polygon, .star, .squircle] {
             let entry = NSMenuItem(title: tool.title, action: #selector(chooseShapeTool(_:)), keyEquivalent: "")
             entry.target = self
             entry.representedObject = tool.rawValue

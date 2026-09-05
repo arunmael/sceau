@@ -10,6 +10,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     case polygon
     case star
     case squircle
+    case distort
     case pen
     case text
 
@@ -23,6 +24,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .polygon: return "Polygon"
         case .star: return "Stern"
         case .squircle: return "App-Icon-Form"
+        case .distort: return "Verzerren"
         case .pen: return "Zeichenstift"
         case .text: return "Text"
         }
@@ -36,6 +38,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .polygon: return "pentagon"
         case .star: return "star"
         case .squircle: return "app"
+        case .distort: return "skew"
         case .pen: return "pencil.tip"
         case .text: return "textformat"
         }
@@ -45,7 +48,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     public var createsShape: Bool {
         switch self {
         case .rectangle, .ellipse, .polygon, .star, .squircle: return true
-        case .select, .pen, .text: return false
+        case .select, .distort, .pen, .text: return false
         }
     }
 }

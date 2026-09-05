@@ -111,6 +111,8 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         case moving(start: CGPoint, originals: [UUID: Node])
         /// Ein Griff wird gezogen.
         case resizing(handle: ResizeHandle, startBounds: CGRect, originals: [UUID: Node])
+        /// Eine Ecke wird frei verzogen (Werkzeug "Verzerren").
+        case distorting(corner: ResizeHandle, startBounds: CGRect, originals: [UUID: Node])
         /// Auswahlrechteck wird aufgezogen.
         case marquee(origin: CGPoint, current: CGPoint)
         /// Am Griff des soeben gesetzten Ankers wird gezogen.
@@ -306,10 +308,13 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         // wirkt ein Griff wie ein normaler Klickpunkt, nicht wie etwas, das
         // sich ziehen lässt. Diese Rechtecke werden nach dem Vollflächen-Rect
         // gesetzt, AppKit bevorzugt bei Überlappung das zuletzt gesetzte.
-        guard store.activeTool == .select, let box = singleSelectionBounds() else { return }
+        guard store.activeTool == .select || store.activeTool == .distort,
+              let box = singleSelectionBounds()
+        else { return }
         let viewBox = viewRect(from: box)
         let half = Self.handleScreenSize
-        for handle in ResizeHandle.allCases {
+        let handles = store.activeTool == .distort ? ResizeHandle.allCases.filter(\.isCorner) : ResizeHandle.allCases
+        for handle in handles {
             let center = handle.position(in: viewBox)
             let rect = CGRect(x: center.x - half, y: center.y - half, width: half * 2, height: half * 2)
             addCursorRect(rect, cursor: handle.resizeCursor)
@@ -320,6 +325,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         switch tool {
         case .select: return .arrow
         case .rectangle, .ellipse, .polygon, .star, .squircle, .pen: return .crosshair
+        case .distort: return .arrow
         case .text: return .iBeam
         }
     }
@@ -477,10 +483,12 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
 
         // Griffe nur bei genau einer Auswahl — bei mehreren wäre unklar, worauf
         // sich das Skalieren bezieht.
-        if let box = singleSelectionBounds() {
-            for handle in ResizeHandle.allCases {
-                addHandle(at: handle.position(in: viewRect(from: box)))
-            }
+        guard let box = singleSelectionBounds() else { return }
+        let handles = store.activeTool == .distort
+            ? ResizeHandle.allCases.filter(\.isCorner)
+            : ResizeHandle.allCases
+        for handle in handles {
+            addHandle(at: handle.position(in: viewRect(from: box)))
         }
     }
 
@@ -672,7 +680,16 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
             return
         }
 
-        if let handle = handle(at: viewPoint), let box = singleSelectionBounds() {
+        if store.activeTool == .distort,
+           let handle = handle(at: viewPoint), handle.isCorner,
+           let box = singleSelectionBounds() {
+            interaction = .distorting(corner: handle, startBounds: box, originals: selectionSnapshot())
+            return
+        }
+
+        // Skaliergriffe gehören dem Auswählen-Werkzeug — im Verzerren-Werkzeug
+        // sollen dieselben Eckpunkte stattdessen frei verzogen werden (oben).
+        if store.activeTool == .select, let handle = handle(at: viewPoint), let box = singleSelectionBounds() {
             interaction = .resizing(handle: handle, startBounds: box, originals: selectionSnapshot())
             return
         }
@@ -765,6 +782,32 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
                 }
             }
 
+        case let .distorting(corner, startBounds, originals):
+            var targetCorners = QuadCorners(rect: startBounds)
+            switch corner {
+            case .topLeft: targetCorners.topLeft = docPoint
+            case .topRight: targetCorners.topRight = docPoint
+            case .bottomRight: targetCorners.bottomRight = docPoint
+            case .bottomLeft: targetCorners.bottomLeft = docPoint
+            case .top, .right, .bottom, .left:
+                // Der Hit-Test lässt hier nur Eckgriffe zu (siehe mouseDown).
+                break
+            }
+            applyLive { document in
+                for (id, original) in originals {
+                    guard document.node(id: id) != nil else { continue }
+                    // Verziehen ist nicht affin — eine parametrische Grundform
+                    // (oder ihre Rotation) liesse sich danach nicht mehr sinnvoll
+                    // ausdrücken. Wie bei booleschen Verknüpfungen wird deshalb
+                    // die aufgelöste, bereits rotierte Kontur festgeschrieben.
+                    let resolved = NodeGeometry.path(for: original)
+                    var updated = original
+                    updated.content = .path(FreeDistortion.warped(resolved, from: startBounds, to: targetCorners))
+                    updated.rotation = 0
+                    document.replace(updated)
+                }
+            }
+
         case .penHandle:
             penDraft.dragHandleOfLastAnchor(to: docPoint)
             rebuildOverlayAnimated()
@@ -794,10 +837,10 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         case let .marquee(origin, _):
             selectNodes(in: CGRect(from: origin, to: docPoint), extending: event.modifierFlags.contains(.shift))
 
-        case .moving, .resizing:
+        case .moving, .resizing, .distorting:
             // Der eigentliche Undo-Schritt wird erst hier festgeschrieben, damit
             // eine Zugbewegung genau einen Schritt ergibt und nicht Hunderte.
-            commitLive(actionName: isResizing ? "Grösse ändern" : "Bewegen")
+            commitLive(actionName: liveActionName)
 
         case .editingAnchor:
             commitLive(actionName: "Ankerpunkt bewegen")
@@ -816,9 +859,12 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         refresh()
     }
 
-    private var isResizing: Bool {
-        if case .resizing = interaction { return true }
-        return false
+    private var liveActionName: String {
+        switch interaction {
+        case .resizing: return "Grösse ändern"
+        case .distorting: return "Verzerren"
+        default: return "Bewegen"
+        }
     }
 
     // MARK: - Änderungen während einer Zugbewegung
