@@ -326,7 +326,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     private func cursor(for tool: ToolKind) -> NSCursor {
         switch tool {
         case .select: return .arrow
-        case .rectangle, .ellipse, .polygon, .star, .squircle, .pen: return .crosshair
+        case .rectangle, .ellipse, .polygon, .star, .squircle, .heart, .arrow, .speechBubble, .cross, .pen: return .crosshair
         case .distort: return .arrow
         case .text: return .iBeam
         }
@@ -1060,6 +1060,10 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         case .polygon: .polygon(frame: rect, sides: 5)
         case .star: .star(frame: rect, points: 5, innerRatio: 0.45)
         case .squircle: .squircle(frame: rect)
+        case .heart: .heart(frame: rect)
+        case .arrow: .arrow(frame: rect, shaftRatio: 0.5)
+        case .speechBubble: .speechBubble(frame: rect, cornerRadius: 12)
+        case .cross: .cross(frame: rect, armRatio: 0.4)
         default: nil
         }
         guard let spec else { return }

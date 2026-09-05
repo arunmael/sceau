@@ -274,6 +274,113 @@ struct ShapeGeometryTests {
         #expect(squircleArea < rectArea)
     }
 
+    // MARK: - Herz
+
+    @Test("Herz: geschlossener Pfad, dessen Hüllrahmen exakt dem Frame entspricht")
+    func heartBoundsMatchFrame() {
+        let frame = CGRect(x: 5, y: 5, width: 100, height: 90)
+        let path = ShapeGeometry.path(for: .heart(frame: frame))
+        let subpath = path.subpaths[0]
+
+        #expect(subpath.isClosed)
+        let bounds = path.bounds
+        #expect(abs(bounds.minX - frame.minX) < 0.5)
+        #expect(abs(bounds.minY - frame.minY) < 0.5)
+        #expect(abs(bounds.maxX - frame.maxX) < 0.5)
+        #expect(abs(bounds.maxY - frame.maxY) < 0.5)
+    }
+
+    @Test("Herz: bei entartetem Frame leerer Pfad")
+    func heartDegenerateFrameIsEmpty() {
+        #expect(ShapeGeometry.path(for: .heart(frame: CGRect(x: 0, y: 0, width: 0, height: 50))).isEmpty)
+    }
+
+    // MARK: - Pfeil
+
+    @Test("Pfeil: geschlossener Pfad, dessen Hüllrahmen exakt dem Frame entspricht, für jede gültige Schaftbreite")
+    func arrowBoundsMatchFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 120, height: 60)
+        for shaftRatio: CGFloat in [0.1, 0.5, 0.9] {
+            let path = ShapeGeometry.path(for: .arrow(frame: frame, shaftRatio: shaftRatio))
+            let subpath = path.subpaths[0]
+            #expect(subpath.isClosed)
+            let bounds = path.bounds
+            #expect(abs(bounds.minX - frame.minX) < 0.5)
+            #expect(abs(bounds.minY - frame.minY) < 0.5)
+            #expect(abs(bounds.maxX - frame.maxX) < 0.5)
+            #expect(abs(bounds.maxY - frame.maxY) < 0.5)
+        }
+    }
+
+    @Test("Pfeil: shaftRatio ausserhalb 0...1 wird geklemmt statt zu entarteter Geometrie zu führen")
+    func arrowShaftRatioIsClamped() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        #expect(!ShapeGeometry.path(for: .arrow(frame: frame, shaftRatio: -5)).isEmpty)
+        #expect(!ShapeGeometry.path(for: .arrow(frame: frame, shaftRatio: 5)).isEmpty)
+    }
+
+    @Test("Pfeil: bei entartetem Frame leerer Pfad")
+    func arrowDegenerateFrameIsEmpty() {
+        #expect(ShapeGeometry.path(for: .arrow(frame: CGRect(x: 0, y: 0, width: -10, height: 10), shaftRatio: 0.5)).isEmpty)
+    }
+
+    // MARK: - Sprechblase
+
+    @Test("Sprechblase: geschlossener Pfad, dessen Hüllrahmen exakt dem Frame entspricht (Schwanz liegt innerhalb)")
+    func speechBubbleBoundsMatchFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 140, height: 90)
+        let path = ShapeGeometry.path(for: .speechBubble(frame: frame, cornerRadius: 16))
+        let subpath = path.subpaths[0]
+
+        #expect(subpath.isClosed)
+        let bounds = path.bounds
+        #expect(abs(bounds.minX - frame.minX) < 0.5)
+        #expect(abs(bounds.minY - frame.minY) < 0.5)
+        #expect(abs(bounds.maxX - frame.maxX) < 0.5)
+        #expect(abs(bounds.maxY - frame.maxY) < 0.5)
+    }
+
+    @Test("Sprechblase: negativer oder zu grosser Eckradius wird sinnvoll geklemmt statt abzustürzen")
+    func speechBubbleCornerRadiusIsClamped() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+        #expect(!ShapeGeometry.path(for: .speechBubble(frame: frame, cornerRadius: -10)).isEmpty)
+        #expect(!ShapeGeometry.path(for: .speechBubble(frame: frame, cornerRadius: 10_000)).isEmpty)
+    }
+
+    @Test("Sprechblase: bei entartetem Frame leerer Pfad")
+    func speechBubbleDegenerateFrameIsEmpty() {
+        #expect(ShapeGeometry.path(for: .speechBubble(frame: CGRect(x: 0, y: 0, width: 50, height: 0), cornerRadius: 8)).isEmpty)
+    }
+
+    // MARK: - Kreuz (Plus)
+
+    @Test("Kreuz: geschlossener Pfad mit 12 Ecken, dessen Hüllrahmen exakt dem Frame entspricht")
+    func crossBoundsMatchFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 80, height: 80)
+        let path = ShapeGeometry.path(for: .cross(frame: frame, armRatio: 0.4))
+        let subpath = path.subpaths[0]
+
+        #expect(subpath.isClosed)
+        #expect(subpath.anchors.count == 12)
+        let bounds = path.bounds
+        #expect(abs(bounds.minX - frame.minX) < 0.5)
+        #expect(abs(bounds.minY - frame.minY) < 0.5)
+        #expect(abs(bounds.maxX - frame.maxX) < 0.5)
+        #expect(abs(bounds.maxY - frame.maxY) < 0.5)
+    }
+
+    @Test("Kreuz: armRatio ausserhalb 0...1 wird geklemmt")
+    func crossArmRatioIsClamped() {
+        let frame = CGRect(x: 0, y: 0, width: 80, height: 80)
+        #expect(!ShapeGeometry.path(for: .cross(frame: frame, armRatio: -1)).isEmpty)
+        #expect(!ShapeGeometry.path(for: .cross(frame: frame, armRatio: 3)).isEmpty)
+    }
+
+    @Test("Kreuz: bei entartetem Frame leerer Pfad")
+    func crossDegenerateFrameIsEmpty() {
+        #expect(ShapeGeometry.path(for: .cross(frame: CGRect(x: 0, y: 0, width: -1, height: 10), armRatio: 0.4)).isEmpty)
+    }
+
     // MARK: - Entartete Rahmen
 
     @Test("Entartete Rahmen (Breite/Höhe <= 0) erzeugen einen leeren Pfad statt abzustürzen")

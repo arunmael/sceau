@@ -236,9 +236,100 @@ private struct SingleNodeInspector: View {
                 }
             }
 
-        case .ellipse, .squircle:
+        case let .arrow(_, shaftRatio):
+            Section("Pfeil") {
+                LabeledContent("Schaftbreite") {
+                    Slider(
+                        value: shaftRatioBinding(current: shaftRatio),
+                        in: 0.05...0.95,
+                        onEditingChanged: { editing in
+                            if editing {
+                                store.beginCoalescing("Schaftbreite ändern")
+                            } else {
+                                store.endCoalescing()
+                            }
+                        }
+                    )
+                }
+            }
+
+        case let .speechBubble(frame, cornerRadius):
+            let maxRadius = max(1, min(frame.width, frame.height) / 2)
+            Section("Sprechblase") {
+                LabeledContent("Eckradius") {
+                    Slider(
+                        value: bubbleCornerRadiusBinding(current: cornerRadius, max: maxRadius),
+                        in: 0...maxRadius,
+                        onEditingChanged: { editing in
+                            if editing {
+                                store.beginCoalescing("Eckradius ändern")
+                            } else {
+                                store.endCoalescing()
+                            }
+                        }
+                    )
+                }
+            }
+
+        case let .cross(_, armRatio):
+            Section("Kreuz") {
+                LabeledContent("Balkendicke") {
+                    Slider(
+                        value: armRatioBinding(current: armRatio),
+                        in: 0.05...0.95,
+                        onEditingChanged: { editing in
+                            if editing {
+                                store.beginCoalescing("Balkendicke ändern")
+                            } else {
+                                store.endCoalescing()
+                            }
+                        }
+                    )
+                }
+            }
+
+        case .ellipse, .squircle, .heart:
             EmptyView()
         }
+    }
+
+    private func shaftRatioBinding(current: CGFloat) -> Binding<Double> {
+        Binding(
+            get: { Double(current) },
+            set: { newValue in
+                updateShape("Schaftbreite ändern") { spec in
+                    if case let .arrow(frame, _) = spec {
+                        spec = .arrow(frame: frame, shaftRatio: CGFloat(newValue))
+                    }
+                }
+            }
+        )
+    }
+
+    private func bubbleCornerRadiusBinding(current: CGFloat, max maxRadius: CGFloat) -> Binding<Double> {
+        Binding(
+            get: { Double(current) },
+            set: { newValue in
+                updateShape("Eckradius ändern") { spec in
+                    if case let .speechBubble(frame, _) = spec {
+                        spec = .speechBubble(frame: frame, cornerRadius: min(maxRadius, max(0, CGFloat(newValue))))
+                    }
+                }
+            }
+        )
+    }
+
+    private func armRatioBinding(current: CGFloat) -> Binding<Double> {
+        Binding(
+            get: { Double(current) },
+            set: { newValue in
+                updateShape("Balkendicke ändern") { spec in
+                    if case let .cross(frame, _) = spec {
+                        spec = .cross(frame: frame, armRatio: CGFloat(newValue))
+                    }
+                }
+            }
+        )
     }
 
     private func cornerRadiusBinding(current: CGFloat, max maxRadius: CGFloat) -> Binding<Double> {

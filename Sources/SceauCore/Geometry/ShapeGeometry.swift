@@ -43,6 +43,14 @@ public enum ShapeGeometry {
             return starPath(frame: frame, points: points, innerRatio: innerRatio)
         case let .squircle(frame):
             return squirclePath(frame: frame)
+        case let .heart(frame):
+            return heartPath(frame: frame)
+        case let .arrow(frame, shaftRatio):
+            return arrowPath(frame: frame, shaftRatio: shaftRatio)
+        case let .speechBubble(frame, cornerRadius):
+            return speechBubblePath(frame: frame, cornerRadius: cornerRadius)
+        case let .cross(frame, armRatio):
+            return crossPath(frame: frame, armRatio: armRatio)
         }
     }
 
@@ -215,6 +223,220 @@ public enum ShapeGeometry {
         }
 
         return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
+    }
+
+    // MARK: - Herz
+
+    /// Herz aus vier kubischen Segmenten in einem normierten Koordinatensystem
+    /// `u,v ∈ [-1,1]` (v nach unten wie im Dokument), anschliessend achsenweise
+    /// unabhängig auf den Rahmen skaliert. Jeder Anker, der einen Rand berührt
+    /// (die beiden Lappenspitzen oben, die beiden äussersten Punkte links/rechts,
+    /// die Spitze unten), bekommt an genau dieser Stelle einen waagrechten bzw.
+    /// senkrechten Griff — nur so garantiert die Kurve, dass ihr tatsächlicher
+    /// Hüllrahmen (der die Bézier-Extrema mit einschliesst, nicht nur die Anker)
+    /// exakt den vorgegebenen Rahmen trifft, statt ihn zu über- oder
+    /// unterschreiten.
+    private static func heartPath(frame: CGRect) -> VectorPath {
+        func map(_ u: CGFloat, _ v: CGFloat) -> CGPoint {
+            CGPoint(x: frame.midX + u * frame.width / 2, y: frame.midY + v * frame.height / 2)
+        }
+
+        let bottom = Anchor(
+            point: map(0, 1),
+            controlIn: map(-0.3, 0.85),
+            controlOut: map(0.3, 0.85),
+            style: .corner
+        )
+        let rightOuter = Anchor(
+            point: map(1, -0.3),
+            controlIn: map(1, 0),
+            controlOut: map(1, -0.6),
+            style: .smooth
+        )
+        let rightLobe = Anchor(
+            point: map(0.5, -1),
+            controlIn: map(0.75, -1),
+            controlOut: map(0.25, -1),
+            style: .smooth
+        )
+        let topDip = Anchor(
+            point: map(0, -0.4),
+            controlIn: map(0.15, -0.6),
+            controlOut: map(-0.15, -0.6),
+            style: .symmetric
+        )
+        let leftLobe = Anchor(
+            point: map(-0.5, -1),
+            controlIn: map(-0.25, -1),
+            controlOut: map(-0.75, -1),
+            style: .smooth
+        )
+        let leftOuter = Anchor(
+            point: map(-1, -0.3),
+            controlIn: map(-1, -0.6),
+            controlOut: map(-1, 0),
+            style: .smooth
+        )
+
+        return VectorPath(subpath: Subpath(
+            anchors: [bottom, rightOuter, rightLobe, topDip, leftLobe, leftOuter],
+            isClosed: true
+        ))
+    }
+
+    // MARK: - Pfeil
+
+    /// Fester Anteil der Rahmenbreite für die Pfeilspitze — siehe
+    /// ``ShapeSpec/arrow(frame:shaftRatio:)``.
+    private static let arrowHeadRatio: CGFloat = 1.0 / 3
+
+    private static func arrowPath(frame: CGRect, shaftRatio: CGFloat) -> VectorPath {
+        let halfThickness = min(1, max(0, shaftRatio))
+        let headStart = 1 - arrowHeadRatio
+
+        func map(_ u: CGFloat, _ v: CGFloat) -> CGPoint {
+            CGPoint(x: frame.minX + u * frame.width, y: frame.midY + v * frame.height / 2)
+        }
+
+        // Gerade Kanten — ein Pfeil ist keine Kurvenform, deshalb ausschliesslich
+        // Eckpunkte ohne Griffwirkung, analog zu Polygon/Stern.
+        let points: [CGPoint] = [
+            map(0, -halfThickness),
+            map(headStart, -halfThickness),
+            map(headStart, -1),
+            map(1, 0),
+            map(headStart, 1),
+            map(headStart, halfThickness),
+            map(0, halfThickness)
+        ]
+
+        return VectorPath(subpath: Subpath(anchors: points.map(Anchor.init(corner:)), isClosed: true))
+    }
+
+    // MARK: - Sprechblase
+
+    /// Fester Anteil der Rahmenhöhe für den Schwanz — siehe
+    /// ``ShapeSpec/speechBubble(frame:cornerRadius:)``.
+    private static let speechBubbleTailHeightRatio: CGFloat = 0.22
+
+    private static func speechBubblePath(frame: CGRect, cornerRadius: CGFloat) -> VectorPath {
+        let tailHeight = frame.height * speechBubbleTailHeightRatio
+        let bubble = CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height - tailHeight)
+        guard bubble.width > 0, bubble.height > 0 else { return VectorPath() }
+
+        let radius = min(max(0, cornerRadius), min(bubble.width, bubble.height) / 2)
+        let handle = kappa * radius
+
+        let topLeft = CGPoint(x: bubble.minX, y: bubble.minY)
+        let topRight = CGPoint(x: bubble.maxX, y: bubble.minY)
+        let bottomRight = CGPoint(x: bubble.maxX, y: bubble.maxY)
+        let bottomLeft = CGPoint(x: bubble.minX, y: bubble.maxY)
+
+        // Schwanz sitzt im geraden Stück der unteren Kante, nahe der linken
+        // Ecke. Ist dafür nach Abzug beider Eckenradien kein Platz mehr (sehr
+        // grosser Eckradius auf schmalem Rahmen), entfällt der Schwanz — eine
+        // reine abgerundete Fläche ist dann immer noch ein gültiges, nicht
+        // entartetes Ergebnis, statt mit negativer Breite abzustürzen.
+        let straightBottom = bottomRight.x - radius - (bottomLeft.x + radius)
+        let tailWidth = max(0, min(frame.width * 0.22, straightBottom * 0.6))
+        let tailInset = max(0, straightBottom * 0.15)
+        let tailBaseLeft = CGPoint(x: bottomLeft.x + radius + tailInset, y: bottomLeft.y)
+        let tailBaseRight = CGPoint(x: tailBaseLeft.x + tailWidth, y: bottomLeft.y)
+        let tailApex = CGPoint(x: tailBaseLeft.x + tailWidth * 0.25, y: frame.maxY)
+        let hasTail = tailWidth > 0
+
+        // Baut auf denselben acht Ankern wie ``rectanglePath`` auf (zwei je
+        // Ecke, gerade Kanten dazwischen) — nur dass die untere Kante bei
+        // vorhandenem Schwanz drei zusätzliche Eckpunkte für das Dreieck bekommt.
+        var anchors: [Anchor] = []
+
+        // Oben-links -> oben-rechts (obere Kante), dann Bogen bei oben-rechts.
+        anchors.append(Anchor(
+            point: CGPoint(x: topLeft.x + radius, y: topLeft.y),
+            controlIn: CGPoint(x: topLeft.x + radius, y: topLeft.y),
+            controlOut: CGPoint(x: topLeft.x + radius, y: topLeft.y),
+            style: .smooth
+        ))
+        anchors.append(Anchor(
+            point: CGPoint(x: topRight.x - radius, y: topRight.y),
+            controlIn: CGPoint(x: topRight.x - radius, y: topRight.y),
+            controlOut: CGPoint(x: topRight.x - radius + handle, y: topRight.y),
+            style: .smooth
+        ))
+        anchors.append(Anchor(
+            point: CGPoint(x: topRight.x, y: topRight.y + radius),
+            controlIn: CGPoint(x: topRight.x, y: topRight.y + radius - handle),
+            controlOut: CGPoint(x: topRight.x, y: topRight.y + radius),
+            style: .smooth
+        ))
+        // Rechte Kante, dann Bogen unten rechts.
+        anchors.append(Anchor(
+            point: CGPoint(x: bottomRight.x, y: bottomRight.y - radius),
+            controlIn: CGPoint(x: bottomRight.x, y: bottomRight.y - radius),
+            controlOut: CGPoint(x: bottomRight.x, y: bottomRight.y - radius + handle),
+            style: .smooth
+        ))
+        anchors.append(Anchor(
+            point: CGPoint(x: bottomRight.x - radius, y: bottomRight.y),
+            controlIn: CGPoint(x: bottomRight.x - radius + handle, y: bottomRight.y),
+            controlOut: CGPoint(x: bottomRight.x - radius, y: bottomRight.y),
+            style: .smooth
+        ))
+        // Untere Kante — mit Schwanz-Dreieck, falls Platz dafür ist.
+        if hasTail {
+            anchors.append(Anchor(corner: tailBaseRight))
+            anchors.append(Anchor(corner: tailApex))
+            anchors.append(Anchor(corner: tailBaseLeft))
+        }
+        anchors.append(Anchor(
+            point: CGPoint(x: bottomLeft.x + radius, y: bottomLeft.y),
+            controlIn: CGPoint(x: bottomLeft.x + radius, y: bottomLeft.y),
+            controlOut: CGPoint(x: bottomLeft.x + radius - handle, y: bottomLeft.y),
+            style: .smooth
+        ))
+        // Bogen unten links.
+        anchors.append(Anchor(
+            point: CGPoint(x: bottomLeft.x, y: bottomLeft.y - radius),
+            controlIn: CGPoint(x: bottomLeft.x, y: bottomLeft.y - radius + handle),
+            controlOut: CGPoint(x: bottomLeft.x, y: bottomLeft.y - radius),
+            style: .smooth
+        ))
+        // Linke Kante, dann Bogen oben links (schliesst zurück zum ersten Anker).
+        anchors.append(Anchor(
+            point: CGPoint(x: topLeft.x, y: topLeft.y + radius),
+            controlIn: CGPoint(x: topLeft.x, y: topLeft.y + radius),
+            controlOut: CGPoint(x: topLeft.x, y: topLeft.y + radius - handle),
+            style: .smooth
+        ))
+
+        return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
+    }
+
+    // MARK: - Kreuz (Plus)
+
+    private static func crossPath(frame: CGRect, armRatio: CGFloat) -> VectorPath {
+        let ratio = min(1, max(0, armRatio))
+        let thickness = ratio * min(frame.width, frame.height)
+        let half = thickness / 2
+        let cx = frame.midX
+        let cy = frame.midY
+
+        let points: [CGPoint] = [
+            CGPoint(x: cx - half, y: frame.minY),
+            CGPoint(x: cx + half, y: frame.minY),
+            CGPoint(x: cx + half, y: cy - half),
+            CGPoint(x: frame.maxX, y: cy - half),
+            CGPoint(x: frame.maxX, y: cy + half),
+            CGPoint(x: cx + half, y: cy + half),
+            CGPoint(x: cx + half, y: frame.maxY),
+            CGPoint(x: cx - half, y: frame.maxY),
+            CGPoint(x: cx - half, y: cy + half),
+            CGPoint(x: frame.minX, y: cy + half),
+            CGPoint(x: frame.minX, y: cy - half),
+            CGPoint(x: cx - half, y: cy - half)
+        ]
+
+        return VectorPath(subpath: Subpath(anchors: points.map(Anchor.init(corner:)), isClosed: true))
     }
 
     // MARK: - Polygon

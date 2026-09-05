@@ -396,7 +396,7 @@ extension DocumentWindowController: NSToolbarDelegate {
 
     private func shapeMenu() -> NSMenu {
         let menu = NSMenu()
-        for tool in [ToolKind.rectangle, .ellipse, .polygon, .star, .squircle] {
+        for tool in [ToolKind.rectangle, .ellipse, .polygon, .star, .squircle, .heart, .arrow, .speechBubble, .cross] {
             let entry = NSMenuItem(title: tool.title, action: #selector(chooseShapeTool(_:)), keyEquivalent: "")
             entry.target = self
             entry.representedObject = tool.rawValue

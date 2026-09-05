@@ -54,7 +54,16 @@ Seit macOS 27 „Golden Gate" unterstützt Sidecar per „Direct Touch" die dire
 - Ankerpunkte setzen per Klick, Kurven durch Ziehen (Standard-Bézier-Verhalten)
 - Ankerpunkte nachträglich verschieben, Kurvengriffe anpassen
 - Pfad schliessen/offen lassen
-- **Bewusst kein** eigenes Kalligrafie-/Formpinsel-Werkzeug wie in Illustrator
+
+### 5.2b Freihandzeichnen (nachträglich ergänzt)
+- Freihand-Werkzeug mit drei Stiftarten (Pinsel, Eimer, Filzstift), die sich in
+  Strichbreite, Weichheit/Deckkraft und Glättung des gezogenen Pfads
+  unterscheiden — kein eigener Kalligrafie-Editor mit Druckkurven o.ä., nur
+  feste, gut abgestimmte Voreinstellungen
+- Ergebnis ist ein normaler Pfad-Knoten und damit sofort mit allen anderen
+  Werkzeugen (Verzerren, boolesche Operationen, Stil) weiterverwendbar
+- Nachträglich ergänzt gegenüber der ursprünglichen Entscheidung unten in
+  Abschnitt 6 — auf ausdrücklichen Wunsch, siehe Projektnotizen
 
 ### 5.3 Boolesche Operationen (Pathfinder — reduziert)
 Nur die vier, die man wirklich ständig braucht:
@@ -69,6 +78,9 @@ Kein vollständiges Pathfinder-Panel mit 10+ Optionen wie in Illustrator.
 - Flächenfarbe (Farbwähler + Hex-Eingabe)
 - Konturfarbe, -stärke, -art (durchgezogen/gestrichelt)
 - Einfacher linearer und radialer Verlauf mit 2–3 Farbstopps — **kein** Mesh-Verlauf
+- Musterfüllung mit einem einzelnen Bild als Kachel (Grösse/Drehung
+  einstellbar) — **kein** eigener Pattern-Editor mit mehreren Ebenen o.ä.
+  (nachträglich ergänzt gegenüber Abschnitt 6, siehe dort)
 
 ### 5.5 Ebenen & Gruppierung
 - Ebenenliste wie in der Foto-App: Vorschau, Sichtbarkeit, Umbenennen, Reihenfolge per Drag & Drop
@@ -98,12 +110,18 @@ Kein vollständiges Pathfinder-Panel mit 10+ Optionen wie in Illustrator.
 
 - Mesh-Verläufe und komplexe Verlaufswerkzeuge
 - Perspektivraster, 3D/Turntable-Funktionen
-- Musterfüllungen mit eigenem Pattern-Editor
 - Mehrere Zeichenflächen pro Dokument
 - KI-Vektorisierung (Skizze/Foto → Vektor) — spannend, aber ein eigenes Projekt für später, kein MVP-Feature
-- Kalligrafie-/Formpinsel
 - Volles Pathfinder-Panel mit Randfällen-Optionen
 - Plugin-System
+
+> **Revidiert:** Musterfüllungen und ein Kalligrafie-/Formpinsel-Werkzeug
+> standen ursprünglich ebenfalls hier, wurden aber auf ausdrücklichen Wunsch
+> nachträglich doch aufgenommen (Abschnitt 5.2b, 5.4) — bewusst jeweils in
+> einer stark reduzierten Form (feste Voreinstellungen statt eines eigenen
+> Editors), um der Design-Prinzip-Leitlinie „wenige, aber präzise" treu zu
+> bleiben. Diese Revision und ihr Umfang wurden bewusst dokumentiert, statt
+> die ursprüngliche Entscheidung stillschweigend zu überschreiben.
 
 ## 7. Technische Architektur
 

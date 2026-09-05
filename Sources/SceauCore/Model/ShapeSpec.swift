@@ -35,6 +35,22 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
     /// App von Apple"), kein einstellbarer Zwischenzustand.
     case squircle(frame: CGRect)
 
+    /// Herz, mittig im Rahmen einbeschrieben.
+    case heart(frame: CGRect)
+
+    /// Pfeil nach rechts. `shaftRatio` (0…1) gibt die Dicke des Schafts als
+    /// Anteil der Rahmenhöhe an; die Pfeilspitze nimmt ein festes Drittel der
+    /// Rahmenbreite ein — ein zweiter Regler dafür wäre laut Design-Prinzip 3
+    /// ("wenige, aber präzise Zahlenwerte") schon zu viel für eine Vorlage.
+    case arrow(frame: CGRect, shaftRatio: CGFloat)
+
+    /// Sprechblase: abgerundetes Rechteck mit dreieckigem Schwanz unten links.
+    case speechBubble(frame: CGRect, cornerRadius: CGFloat)
+
+    /// Kreuz/Plus-Zeichen. `armRatio` (0…1) gibt die Balkendicke als Anteil
+    /// der kürzeren Rahmenseite an.
+    case cross(frame: CGRect, armRatio: CGFloat)
+
     /// Der Rahmen, in den die Form eingepasst ist.
     public var frame: CGRect {
         get {
@@ -43,7 +59,11 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
                  let .ellipse(frame),
                  let .polygon(frame, _),
                  let .star(frame, _, _),
-                 let .squircle(frame):
+                 let .squircle(frame),
+                 let .heart(frame),
+                 let .arrow(frame, _),
+                 let .speechBubble(frame, _),
+                 let .cross(frame, _):
                 return frame
             }
         }
@@ -59,6 +79,14 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
                 self = .star(frame: newValue, points: points, innerRatio: innerRatio)
             case .squircle:
                 self = .squircle(frame: newValue)
+            case .heart:
+                self = .heart(frame: newValue)
+            case let .arrow(_, shaftRatio):
+                self = .arrow(frame: newValue, shaftRatio: shaftRatio)
+            case let .speechBubble(_, cornerRadius):
+                self = .speechBubble(frame: newValue, cornerRadius: cornerRadius)
+            case let .cross(_, armRatio):
+                self = .cross(frame: newValue, armRatio: armRatio)
             }
         }
     }
@@ -71,6 +99,10 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
         case .polygon: return "Polygon"
         case .star: return "Stern"
         case .squircle: return "App-Icon-Form"
+        case .heart: return "Herz"
+        case .arrow: return "Pfeil"
+        case .speechBubble: return "Sprechblase"
+        case .cross: return "Kreuz"
         }
     }
 }
