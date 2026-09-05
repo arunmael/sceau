@@ -53,6 +53,38 @@ struct DocumentStoreTests {
         #expect(firstFrame(store) == before)
     }
 
+    /// Grundlage für den Änderungszähler des `NSDocument`: Ob eine Änderung
+    /// beim Widerrufen oder Wiederholen entstand, lässt sich nicht am Store
+    /// selbst ablesen, sondern nur am `UndoManager` in genau dem Moment, in
+    /// dem `didChange` feuert (`isUndoing`/`isRedoing`). Verwechselt die App
+    /// das mit einer normalen Änderung, bleibt ein Dokument nach einem
+    /// Widerrufen bis zum Sicherungsstand fälschlich als „geändert" markiert.
+    @Test("didChange feuert während Widerrufen/Wiederholen mit passendem UndoManager-Zustand")
+    func didChangeReflectsUndoManagerState() {
+        let (store, undo) = makeStore()
+
+        var kinds: [String] = []
+        store.didChange = { [weak undo] in
+            guard let undo else { return }
+            if undo.isUndoing {
+                kinds.append("undone")
+            } else if undo.isRedoing {
+                kinds.append("redone")
+            } else {
+                kinds.append("done")
+            }
+        }
+
+        store.apply("Bewegen") { document in
+            guard let node = document.nodes.first else { return }
+            document.replace(NodeTransform.moved(node, by: CGVector(dx: 25, dy: 0)))
+        }
+        undo.undo()
+        undo.redo()
+
+        #expect(kinds == ["done", "undone", "redone"])
+    }
+
     @Test("Widerrufenes lässt sich wiederholen")
     func undoneChangeCanBeRedone() {
         let (store, undo) = makeStore()

@@ -56,7 +56,22 @@ final class SceauDocument: NSDocument {
     private func connectStore() {
         store.undoManager = undoManager
         store.didChange = { [weak self] in
-            self?.updateChangeCount(.changeDone)
+            // `didChange` feuert unterschiedslos für neue Änderungen, für ein
+            // Widerrufen und für ein Wiederholen. Würde hier immer
+            // `.changeDone` gemeldet, zählte der Änderungszähler beim
+            // Widerrufen weiter nach oben statt nach unten — ein Dokument
+            // bliebe dann selbst dann als „geändert" markiert, wenn ein
+            // Widerrufen es exakt auf den zuletzt gesicherten Stand
+            // zurückgebracht hat. `UndoManager.isUndoing`/`isRedoing` ist in
+            // genau diesem Moment gesetzt und verrät den Unterschied.
+            guard let self else { return }
+            if self.undoManager?.isUndoing == true {
+                self.updateChangeCount(.changeUndone)
+            } else if self.undoManager?.isRedoing == true {
+                self.updateChangeCount(.changeRedone)
+            } else {
+                self.updateChangeCount(.changeDone)
+            }
         }
     }
 
