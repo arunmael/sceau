@@ -236,7 +236,7 @@ private struct SingleNodeInspector: View {
                 }
             }
 
-        case .ellipse:
+        case .ellipse, .squircle:
             EmptyView()
         }
     }

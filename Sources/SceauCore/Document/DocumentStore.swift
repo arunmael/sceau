@@ -9,6 +9,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     case ellipse
     case polygon
     case star
+    case squircle
     case pen
     case text
 
@@ -21,6 +22,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .ellipse: return "Ellipse"
         case .polygon: return "Polygon"
         case .star: return "Stern"
+        case .squircle: return "App-Icon-Form"
         case .pen: return "Zeichenstift"
         case .text: return "Text"
         }
@@ -33,6 +35,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
         case .ellipse: return "circle"
         case .polygon: return "pentagon"
         case .star: return "star"
+        case .squircle: return "app"
         case .pen: return "pencil.tip"
         case .text: return "textformat"
         }
@@ -41,7 +44,7 @@ public enum ToolKind: String, CaseIterable, Identifiable {
     /// Werkzeuge, die durch Aufziehen eine neue Grundform erzeugen.
     public var createsShape: Bool {
         switch self {
-        case .rectangle, .ellipse, .polygon, .star: return true
+        case .rectangle, .ellipse, .polygon, .star, .squircle: return true
         case .select, .pen, .text: return false
         }
     }

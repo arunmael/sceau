@@ -191,6 +191,68 @@ struct ShapeGeometryTests {
         #expect(path.subpaths[0].anchors.count == 6)
     }
 
+    // MARK: - Squircle (App-Icon-Form)
+
+    @Test("Squircle: geschlossener Pfad, dessen Hüllrahmen exakt dem Frame entspricht")
+    func squircleBoundsMatchFrame() {
+        let frame = CGRect(x: 10, y: 20, width: 100, height: 60)
+        let path = ShapeGeometry.path(for: .squircle(frame: frame))
+        let subpath = path.subpaths[0]
+
+        #expect(subpath.isClosed)
+        let bounds = path.bounds
+        #expect(abs(bounds.minX - frame.minX) < 0.5)
+        #expect(abs(bounds.minY - frame.minY) < 0.5)
+        #expect(abs(bounds.maxX - frame.maxX) < 0.5)
+        #expect(abs(bounds.maxY - frame.maxY) < 0.5)
+    }
+
+    @Test("Squircle: viele Anker für eine glatte Kurve, keiner ausserhalb des Frames")
+    func squircleHasManyAnchorsInsideFrame() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let path = ShapeGeometry.path(for: .squircle(frame: frame))
+        let subpath = path.subpaths[0]
+
+        #expect(subpath.anchors.count >= 32)
+        for anchor in subpath.anchors {
+            #expect(anchor.point.x >= frame.minX - 0.5 && anchor.point.x <= frame.maxX + 0.5)
+            #expect(anchor.point.y >= frame.minY - 0.5 && anchor.point.y <= frame.maxY + 0.5)
+        }
+    }
+
+    @Test("Squircle: bei quadratischem Frame liegt die Kontur strikt innerhalb des einbeschriebenen Kreises der Ecken, aber ausserhalb der Ellipse — typische Squircle-Silhouette")
+    func squircleShapeIsBetweenEllipseAndRectangle() {
+        // Superellipse mit Exponent > 2 wölbt sich näher an die Ecken heran als
+        // eine Ellipse, bleibt aber innerhalb des Rechtecks — das ist genau die
+        // "App-Icon"-Silhouette, die eine reine Ellipse nicht liefert.
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+        func polygonArea(_ path: VectorPath) -> CGFloat {
+            let subpath = path.subpaths[0]
+            var points: [CGPoint] = []
+            let steps = 100
+            for segment in subpath.segments {
+                for i in 0..<steps {
+                    points.append(segment.point(at: CGFloat(i) / CGFloat(steps)))
+                }
+            }
+            var area: CGFloat = 0
+            for i in 0..<points.count {
+                let p0 = points[i]
+                let p1 = points[(i + 1) % points.count]
+                area += p0.x * p1.y - p1.x * p0.y
+            }
+            return abs(area) / 2
+        }
+
+        let ellipseArea = polygonArea(ShapeGeometry.path(for: .ellipse(frame: frame)))
+        let squircleArea = polygonArea(ShapeGeometry.path(for: .squircle(frame: frame)))
+        let rectArea = frame.width * frame.height
+
+        #expect(squircleArea > ellipseArea)
+        #expect(squircleArea < rectArea)
+    }
+
     // MARK: - Entartete Rahmen
 
     @Test("Entartete Rahmen (Breite/Höhe <= 0) erzeugen einen leeren Pfad statt abzustürzen")
@@ -204,6 +266,7 @@ struct ShapeGeometryTests {
             #expect(ShapeGeometry.path(for: .ellipse(frame: frame)).isEmpty)
             #expect(ShapeGeometry.path(for: .polygon(frame: frame, sides: 5)).isEmpty)
             #expect(ShapeGeometry.path(for: .star(frame: frame, points: 5, innerRatio: 0.5)).isEmpty)
+            #expect(ShapeGeometry.path(for: .squircle(frame: frame)).isEmpty)
         }
     }
 }

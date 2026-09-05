@@ -92,6 +92,13 @@ enum MainMenuBuilder {
         let menu = NSMenu()
         menu.addItem(item("Widerrufen", Selector(("undo:")), "z"))
         menu.addItem(item("Wiederholen", Selector(("redo:")), "z", modifiers: [.command, .shift]))
+        // Zusätzlicher, unsichtbarer Eintrag: ⌘Y ist unter Windows/anderen
+        // Grafikprogrammen die übliche zweite Wiederholen-Taste. AppKit
+        // wertet Tastenkürzel auch bei ausgeblendeten Menüpunkten aus, daher
+        // taucht "Wiederholen" trotzdem nur einmal sichtbar im Menü auf.
+        let redoAlternate = item("Wiederholen", Selector(("redo:")), "y")
+        redoAlternate.isHidden = true
+        menu.addItem(redoAlternate)
         menu.addItem(.separator())
         menu.addItem(item("Ausschneiden", #selector(NSText.cut(_:)), "x"))
         menu.addItem(item("Kopieren", #selector(NSText.copy(_:)), "c"))

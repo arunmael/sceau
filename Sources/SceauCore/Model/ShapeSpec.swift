@@ -28,6 +28,13 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
     /// spitzere Zacken.
     case star(frame: CGRect, points: Int, innerRatio: CGFloat)
 
+    /// Superellipse ("Squircle"), wie sie App-Icons unter macOS/iOS verwenden —
+    /// wölbt sich runder als ein abgerundetes Rechteck, aber eckiger als eine
+    /// Ellipse. Fester Exponent statt eines Reglers, weil genau diese eine
+    /// Silhouette der gesuchte Anwendungsfall ist ("die exakte Form einer
+    /// App von Apple"), kein einstellbarer Zwischenzustand.
+    case squircle(frame: CGRect)
+
     /// Der Rahmen, in den die Form eingepasst ist.
     public var frame: CGRect {
         get {
@@ -35,7 +42,8 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
             case let .rectangle(frame, _),
                  let .ellipse(frame),
                  let .polygon(frame, _),
-                 let .star(frame, _, _):
+                 let .star(frame, _, _),
+                 let .squircle(frame):
                 return frame
             }
         }
@@ -49,6 +57,8 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
                 self = .polygon(frame: newValue, sides: sides)
             case let .star(_, points, innerRatio):
                 self = .star(frame: newValue, points: points, innerRatio: innerRatio)
+            case .squircle:
+                self = .squircle(frame: newValue)
             }
         }
     }
@@ -60,6 +70,7 @@ public enum ShapeSpec: Equatable, Sendable, Codable {
         case .ellipse: return "Ellipse"
         case .polygon: return "Polygon"
         case .star: return "Stern"
+        case .squircle: return "App-Icon-Form"
         }
     }
 }

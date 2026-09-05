@@ -956,6 +956,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         case .ellipse: .ellipse(frame: rect)
         case .polygon: .polygon(frame: rect, sides: 5)
         case .star: .star(frame: rect, points: 5, innerRatio: 0.45)
+        case .squircle: .squircle(frame: rect)
         default: nil
         }
         guard let spec else { return }

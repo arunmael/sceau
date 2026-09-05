@@ -13,6 +13,10 @@ public enum ShapeGeometry {
     /// Herleitung: 4/3 * (sqrt(2) - 1).
     private static let kappa: CGFloat = 0.5522847498307936
 
+    /// Ein fester Exponent hält die App-Icon-Silhouette über alle Grössen hinweg
+    /// konsistent, statt sie zu einem frei veränderlichen Formparameter zu machen.
+    private static let superellipseExponent: CGFloat = 5
+
     /// Löst eine parametrische Grundform in ihre Pfaddarstellung auf.
     public static func path(for spec: ShapeSpec) -> VectorPath {
         let frame = spec.frame
@@ -37,6 +41,8 @@ public enum ShapeGeometry {
             return polygonPath(frame: frame, sides: sides)
         case let .star(frame, points, innerRatio):
             return starPath(frame: frame, points: points, innerRatio: innerRatio)
+        case let .squircle(frame):
+            return squirclePath(frame: frame)
         }
     }
 
@@ -182,6 +188,31 @@ public enum ShapeGeometry {
                 style: .symmetric
             )
         ]
+
+        return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
+    }
+
+    // MARK: - Squircle
+
+    private static func squirclePath(frame: CGRect) -> VectorPath {
+        let sampleCount = 64
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let a = frame.width / 2
+        let b = frame.height / 2
+        let power = 2 / superellipseExponent
+
+        // Genügend dichte Eckanker vermeiden Bézier-Sonderfälle an den Achsen;
+        // der Betrag hält die gebrochene Potenz auch bei negativen Anteilen reell.
+        var anchors: [Anchor] = []
+        anchors.reserveCapacity(sampleCount)
+        for index in 0..<sampleCount {
+            let angle = 2 * CGFloat.pi * CGFloat(index) / CGFloat(sampleCount)
+            let cosT = cos(angle)
+            let sinT = sin(angle)
+            let x = a * pow(abs(cosT), power) * (cosT < 0 ? -1 : 1)
+            let y = b * pow(abs(sinT), power) * (sinT < 0 ? -1 : 1)
+            anchors.append(Anchor(corner: CGPoint(x: center.x + x, y: center.y + y)))
+        }
 
         return VectorPath(subpath: Subpath(anchors: anchors, isClosed: true))
     }
