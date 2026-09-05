@@ -54,8 +54,32 @@ public enum DocumentRenderer {
 
         context.saveGState()
         context.setAlpha(node.style.opacity)
+
+        if let shadow = node.style.shadow {
+            // Eine Transparenzebene sorgt dafür, dass der Schatten einmal
+            // für die kombinierte Fläche+Kontur entsteht, statt doppelt
+            // (einmal unter der Füllung, einmal unter der Kontur) — sonst
+            // würde am Konturrand ein sichtbar dunklerer Saum entstehen.
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            // `setShadow` misst Versatz und Radius im unveränderlichen
+            // Standard-Koordinatenraum, nicht in der aktuellen (hier bereits
+            // gespiegelten) Transformationsmatrix — die vertikale Komponente
+            // muss deshalb umgekehrt werden, damit ein positiver Versatz im
+            // Dokument tatsächlich sichtbar nach unten zeigt.
+            context.setShadow(
+                offset: CGSize(width: shadow.offset.width, height: -shadow.offset.height),
+                blur: shadow.blurRadius,
+                color: shadow.color.cgColor
+            )
+        }
+
         drawFill(path, style: node.style, in: context)
         drawStroke(path, style: node.style, in: context)
+
+        if node.style.shadow != nil {
+            context.endTransparencyLayer()
+        }
+
         context.restoreGState()
     }
 

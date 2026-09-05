@@ -50,6 +50,26 @@ enum CanvasRenderer {
         let container = CALayer()
         container.opacity = Float(node.style.opacity)
 
+        if let shadow = node.style.shadow {
+            // Anders als beim Export (siehe DocumentRenderer) ist hier keine
+            // Spiegelung im Spiel: Die Zeichenfläche ist eine "flipped"
+            // NSView, ihr Layerbaum arbeitet direkt in Dokumentkoordinaten
+            // (y wächst nach unten) — ein positiver dy zeigt also ohne
+            // Vorzeichenumkehr schon nach unten.
+            // `shadowColor` wird als voll deckend übergeben — die eigentliche
+            // Deckkraft steuert ausschliesslich `shadowOpacity`, sonst würde
+            // das Alpha der Farbe doppelt einfliessen.
+            container.shadowColor = RGBAColor(red: shadow.color.red, green: shadow.color.green, blue: shadow.color.blue).cgColor
+            container.shadowOpacity = Float(shadow.color.alpha)
+            container.shadowOffset = shadow.offset
+            container.shadowRadius = shadow.blurRadius / 2
+            // Ohne expliziten Pfad müsste Core Animation die Schattenform aus
+            // der zusammengesetzten Transparenz der Unterebenen ableiten —
+            // langsamer und bei Verläufen/Mustern (die über eine Maskenebene
+            // laufen) ungenauer als der ohnehin schon vorliegende Pfad.
+            container.shadowPath = cgPath
+        }
+
         if let fillLayer = makeFillLayer(path: cgPath, paint: node.style.fill, style: node.style) {
             container.addSublayer(fillLayer)
         }

@@ -134,6 +134,23 @@ struct SVGExporterTests {
         #expect(svg.contains("data:image/png;base64,"))
     }
 
+    @Test("Schlagschatten erzeugt filter-defs-Block mit feDropShadow und referenziertem filter-Attribut")
+    func shadowProducesFilterDef() throws {
+        var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))
+        var style = Style()
+        style.shadow = Shadow(color: .black, offset: CGSize(width: 2, height: 4), blurRadius: 6)
+        document.nodes = [
+            Node(shape: .ellipse(frame: CGRect(x: 0, y: 0, width: 50, height: 50)), style: style)
+        ]
+
+        let svg = SVGExporter.export(document)
+        try assertWellFormed(svg)
+
+        #expect(svg.contains("<filter"))
+        #expect(svg.contains("feDropShadow"))
+        #expect(svg.contains(#"filter="url(#"#))
+    }
+
     @Test("Unsichtbare Knoten fehlen in der Ausgabe")
     func invisibleNodesAreOmitted() throws {
         var document = Document(artboard: Artboard(size: CGSize(width: 50, height: 50)))

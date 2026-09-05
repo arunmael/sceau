@@ -192,6 +192,32 @@ public enum FillRule: String, Equatable, Sendable, Codable, CaseIterable {
     case evenOdd
 }
 
+/// Ein einfacher Schlagschatten. Bewusst **nur** dieser eine Effekt — kein
+/// Effektstapel mit mehreren, kombinierbaren Filtern wie in Illustrator/
+/// Photoshop, siehe Design-Prinzip 3 ("wenige, aber präzise Zahlenwerte").
+public struct Shadow: Equatable, Sendable, Codable {
+    public var color: RGBAColor
+    /// Versatz in Dokumentpunkten; positive `dy` bedeutet "nach unten"
+    /// (gleiche Konvention wie das übrige Dokumentkoordinatensystem).
+    public var offset: CGSize
+    /// Weichzeichnungsradius in Dokumentpunkten, `>= 0`.
+    public var blurRadius: CGFloat
+
+    public init(
+        color: RGBAColor = RGBAColor(red: 0, green: 0, blue: 0, alpha: 0.5),
+        offset: CGSize = CGSize(width: 0, height: 4),
+        blurRadius: CGFloat = 8
+    ) {
+        self.color = color
+        self.offset = offset.isFiniteSize ? offset : .zero
+        self.blurRadius = blurRadius.isFinite ? max(0, blurRadius) : 0
+    }
+}
+
+private extension CGSize {
+    var isFiniteSize: Bool { width.isFinite && height.isFinite }
+}
+
 /// Das vollständige Erscheinungsbild eines Knotens.
 public struct Style: Equatable, Sendable, Codable {
     public var fill: Paint
@@ -199,16 +225,20 @@ public struct Style: Equatable, Sendable, Codable {
     public var fillRule: FillRule
     /// Deckkraft des gesamten Knotens, 0…1 — wirkt zusätzlich zum Alpha der Farben.
     public var opacity: CGFloat
+    /// Schlagschatten; `nil` heisst kein Schatten.
+    public var shadow: Shadow?
 
     public init(
         fill: Paint = .solid(RGBAColor(red: 0.35, green: 0.42, blue: 0.95)),
         stroke: Stroke? = nil,
         fillRule: FillRule = .nonZero,
-        opacity: CGFloat = 1
+        opacity: CGFloat = 1,
+        shadow: Shadow? = nil
     ) {
         self.fill = fill
         self.stroke = stroke
         self.fillRule = fillRule
         self.opacity = opacity
+        self.shadow = shadow
     }
 }

@@ -113,6 +113,7 @@ private struct SingleNodeInspector: View {
 
         FillSection(nodes: [node], store: store)
         StrokeSection(nodes: [node], store: store)
+        ShadowSection(nodes: [node], store: store)
         OpacitySection(nodes: [node], store: store)
     }
 
@@ -477,6 +478,7 @@ private struct MultiNodeInspector: View {
 
         FillSection(nodes: nodes, store: store)
         StrokeSection(nodes: nodes, store: store)
+        ShadowSection(nodes: nodes, store: store)
         OpacitySection(nodes: nodes, store: store)
     }
 }
@@ -910,6 +912,83 @@ private struct StrokeSection: View {
             for node in nodes {
                 guard var updated = document.node(id: node.id) else { continue }
                 updated.style.stroke = stroke
+                document.replace(updated)
+            }
+        }
+    }
+}
+
+// MARK: - Schlagschatten (einzeln wie mehrfach)
+
+private struct ShadowSection: View {
+    let nodes: [Node]
+    let store: DocumentStore
+
+    /// Äusseres Optional: uneinheitlich in der Auswahl. Inneres Optional: Schatten an/aus.
+    private var current: Shadow?? { commonValue(of: nodes, \.style.shadow) }
+
+    var body: some View {
+        Section("Schatten") {
+            if let current {
+                Toggle("Schlagschatten", isOn: Binding(
+                    get: { current != nil },
+                    set: { isOn in apply(isOn ? (current ?? Shadow()) : nil) }
+                ))
+
+                if let shadow = current {
+                    ColorPicker(
+                        "Farbe",
+                        selection: Binding(
+                            get: { Color(rgba: shadow.color) },
+                            set: { newColor in
+                                var updated = shadow
+                                updated.color = RGBAColor(color: newColor)
+                                apply(updated)
+                            }
+                        ),
+                        supportsOpacity: true
+                    )
+
+                    LabeledContent("Versatz") {
+                        HStack(spacing: 4) {
+                            TextField("X", value: Binding(
+                                get: { Double(shadow.offset.width) },
+                                set: { var updated = shadow; updated.offset.width = CGFloat($0); apply(updated) }
+                            ), format: .number).frame(width: 50)
+                            Text("×")
+                            TextField("Y", value: Binding(
+                                get: { Double(shadow.offset.height) },
+                                set: { var updated = shadow; updated.offset.height = CGFloat($0); apply(updated) }
+                            ), format: .number).frame(width: 50)
+                        }
+                    }
+
+                    LabeledContent("Weichzeichnung") {
+                        Slider(
+                            value: Binding(
+                                get: { Double(shadow.blurRadius) },
+                                set: { var updated = shadow; updated.blurRadius = max(0, CGFloat($0)); apply(updated) }
+                            ),
+                            in: 0...50,
+                            onEditingChanged: { editing in
+                                if editing {
+                                    store.beginCoalescing("Weichzeichnung ändern")
+                                } else {
+                                    store.endCoalescing()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func apply(_ shadow: Shadow?) {
+        store.apply("Schatten ändern") { document in
+            for node in nodes {
+                guard var updated = document.node(id: node.id) else { continue }
+                updated.style.shadow = shadow
                 document.replace(updated)
             }
         }

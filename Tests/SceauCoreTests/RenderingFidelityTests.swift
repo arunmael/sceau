@@ -114,6 +114,32 @@ struct RenderingFidelityTests {
         #expect(seconds < 5, "Musterfüllung mit winziger Kachelgrösse dauerte \(seconds) s — Deckel greift nicht?")
     }
 
+    @Test("Ein Schlagschatten färbt einen Punkt ausserhalb der Form unten rechts vom Objekt, nicht oben links")
+    func shadowAppearsBelowAndRightOfShape() throws {
+        var document = Document(artboard: Artboard(size: CGSize(width: 100, height: 100), background: .white))
+        var style = Style(fill: .solid(.black))
+        style.shadow = Shadow(color: RGBAColor(red: 1, green: 0, blue: 0, alpha: 1), offset: CGSize(width: 15, height: 15), blurRadius: 0)
+        document.nodes = [
+            Node(
+                name: "Quadrat",
+                style: style,
+                content: .shape(.rectangle(frame: CGRect(x: 20, y: 20, width: 30, height: 30), cornerRadius: 0))
+            )
+        ]
+
+        let data = try RasterExporter.pngData(document, pixelWidth: 100, pixelHeight: 100)
+        let p = try pixels(data, size: 100)
+
+        // Direkt unter-rechts der Form (ausserhalb ihrer eigenen Fläche, die
+        // bei x,y 20...50 liegt) sollte der ungeblurrte, um (15,15) versetzte
+        // rote Schatten liegen. Oben links der Form (ausserhalb) bleibt weiss.
+        let untenRechtsVomSchatten = p(55, 55)
+        let obenLinksAusserhalb = p(10, 10)
+
+        #expect(untenRechtsVomSchatten.r > 200 && untenRechtsVomSchatten.g < 60, "erwartet roten Schatten bei (55,55), war \(untenRechtsVomSchatten)")
+        #expect(obenLinksAusserhalb.r > 240 && obenLinksAusserhalb.g > 240 && obenLinksAusserhalb.b > 240, "erwartet weiss bei (10,10), war \(obenLinksAusserhalb)")
+    }
+
     @Test("Ein linearer Verlauf färbt die Ecken unterschiedlich")
     func linearGradientRuns() throws {
         var style = Style()

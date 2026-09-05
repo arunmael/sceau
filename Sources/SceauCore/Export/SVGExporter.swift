@@ -152,6 +152,11 @@ public enum SVGExporter {
             attrs.append(("opacity", format(node.style.opacity, decimals: max(context.decimals, 2))))
         }
 
+        if let shadow = node.style.shadow {
+            let id = context.registerShadowFilter(shadow)
+            attrs.append(("filter", "url(#\(id))"))
+        }
+
         guard !attrs.isEmpty else { return "" }
         return " " + attrs.map { "\($0.0)=\"\($0.1)\"" }.joined(separator: " ")
     }
@@ -318,6 +323,29 @@ public enum SVGExporter {
             xml += ">"
             xml += "<image href=\"data:\(mime);base64,\(base64)\" width=\"\(width)\" height=\"\(height)\"/>"
             xml += "</pattern>"
+            defs.append(xml)
+            return id
+        }
+
+        /// Trägt einen Schlagschatten als `<filter>` mit `feDropShadow` ein —
+        /// das einzige SVG-Element, das genau unser Modell (Versatz, Blur,
+        /// Farbe inkl. Alpha) 1:1 abbildet, ohne über mehrere Primitive
+        /// (feGaussianBlur + feOffset + feFlood + feComposite) zusammengesetzt
+        /// werden zu müssen.
+        mutating func registerShadowFilter(_ shadow: Shadow) -> String {
+            let id = nextGradientID(prefix: "shadow")
+            let dx = SVGExporter.format(shadow.offset.width, decimals: max(decimals, 2))
+            let dy = SVGExporter.format(shadow.offset.height, decimals: max(decimals, 2))
+            // SVG erwartet eine Standardabweichung, unser Modell einen
+            // Blur-Radius — der gängige Umrechnungsfaktor ist 1/2.
+            let stdDeviation = SVGExporter.format(shadow.blurRadius / 2, decimals: max(decimals, 2))
+            let color = SVGExporter.hex(shadow.color)
+            let opacity = SVGExporter.format(shadow.color.alpha, decimals: max(decimals, 2))
+
+            var xml = "<filter id=\"\(id)\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">"
+            xml += "<feDropShadow dx=\"\(dx)\" dy=\"\(dy)\" stdDeviation=\"\(stdDeviation)\""
+            xml += " flood-color=\"\(color)\" flood-opacity=\"\(opacity)\"/>"
+            xml += "</filter>"
             defs.append(xml)
             return id
         }
