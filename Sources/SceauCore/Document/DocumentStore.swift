@@ -76,7 +76,10 @@ public enum FreehandBrush: String, CaseIterable, Identifiable, Sendable {
     case pen
     /// Mittlere Breite, leicht transparent, stärker geglättet.
     case brush
-    /// Breit, voll deckend, am stärksten geglättet — für grobe Flächen.
+    /// Kein Strich: ein Klick füllt stattdessen die von bestehenden Konturen
+    /// umschlossene Fläche unter dem Zeiger — siehe ``BucketFill`` und
+    /// `CanvasView.performBucketFill(at:)`. Die Werte unten (Strichbreite,
+    /// Deckkraft, Glättung) gelten für diesen Fall nicht.
     case bucket
 
     public var id: String { rawValue }

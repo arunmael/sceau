@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SceauCore
 
 /// Die acht Griffpunkte um eine Auswahl.
@@ -137,6 +138,11 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         // stellt den gesamten Inhalt auf den Kopf.
         layer?.addSublayer(contentLayer)
         layer?.addSublayer(overlayLayer)
+
+        // Erlaubt, eine Bilddatei aus dem Finder (oder aus Vorschau/Fotos)
+        // direkt auf die Zeichenfläche zu ziehen, statt den Umweg über
+        // „Bild einfügen …" nehmen zu müssen.
+        registerForDraggedTypes([.fileURL])
 
         observeStore()
     }
@@ -670,6 +676,63 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         return nil
     }
 
+    // MARK: - Drag & Drop
+
+    /// Erkennt Bilddateien im Ziehvorgang und zeigt den Kopier-Cursor an.
+    private func imageFileURLs(in draggingInfo: NSDraggingInfo) -> [URL] {
+        guard let urls = draggingInfo.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] else { return [] }
+        return urls.filter { ["png", "jpg", "jpeg"].contains($0.pathExtension.lowercased()) }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        imageFileURLs(in: sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        imageFileURLs(in: sender).isEmpty ? [] : .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = imageFileURLs(in: sender)
+        guard !urls.isEmpty else { return false }
+
+        let dropPoint = documentPoint(from: convert(sender.draggingLocation, from: nil))
+        // Bei mehreren fallengelassenen Dateien versetzt, damit sie nicht
+        // alle exakt übereinander landen.
+        for (offset, url) in urls.enumerated() {
+            let center = CGPoint(x: dropPoint.x + CGFloat(offset) * 24, y: dropPoint.y + CGFloat(offset) * 24)
+            insertDroppedImage(from: url, centeredAt: center)
+        }
+        return true
+    }
+
+    /// Dieselbe Bild-Einbettung wie „Bild einfügen …"
+    /// (``DocumentWindowController/insertImage(_:)``), nur zentriert auf dem
+    /// Ablagepunkt statt auf der Zeichenfläche — siehe ``ImagePlacement``.
+    private func insertDroppedImage(from url: URL, centeredAt center: CGPoint) {
+        guard let data = try? Data(contentsOf: url),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return }
+
+        let artboard = store.document.artboard
+        let frame = ImagePlacement.frame(
+            forPixelSize: CGSize(width: cgImage.width, height: cgImage.height),
+            centeredAt: center,
+            maxDimension: max(artboard.size.width, artboard.size.height)
+        )
+
+        let node = Node(
+            name: url.deletingPathExtension().lastPathComponent,
+            content: .image(ImageSpec(data: data, frame: frame))
+        )
+        store.apply("Bild einfügen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
+    }
+
     // MARK: - Maus
 
     override func mouseDown(with event: NSEvent) {
@@ -689,6 +752,13 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         }
 
         if store.activeTool == .freehand {
+            // Der Eimer zieht keinen Strich, sondern füllt bei blossem Klick
+            // die von bestehenden Konturen umschlossene Fläche unter dem
+            // Zeiger — siehe ``performBucketFill(at:)``.
+            if store.freehandBrush == .bucket {
+                performBucketFill(at: docPoint)
+                return
+            }
             interaction = .freehandDrawing(points: [docPoint])
             return
         }
@@ -1122,6 +1192,28 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         store.apply("Freihand zeichnen") { $0.appendOnTop(node) }
         store.selection = [node.id]
         store.activeTool = .select
+    }
+
+    /// Füllt die von bestehenden Konturen umschlossene Fläche unter `point`
+    /// — siehe ``BucketFill``. Findet sich keine umschliessende Kontur, tut
+    /// ein Klick bewusst nichts (kein Rechteck über die ganze Zeichenfläche
+    /// als Rückfall — der Eimer soll nur innerhalb einer echten Abgrenzung
+    /// füllen).
+    private func performBucketFill(at point: CGPoint) {
+        let boundaries = store.document.nodes
+            .filter { $0.isVisible && !$0.isLocked }
+            .map { node in
+                BucketFill.Boundary(
+                    path: NodeGeometry.path(for: node),
+                    fillRule: node.style.fillRule == .evenOdd ? .evenOdd : .winding
+                )
+            }
+
+        guard let region = try? BucketFill.region(at: point, boundaries: boundaries) else { return }
+
+        let node = Node(name: "Eimer-Füllung", content: .path(region))
+        store.apply("Fläche füllen") { $0.appendOnTop(node) }
+        store.selection = [node.id]
     }
 
     private func selectNodes(in rect: CGRect, extending: Bool) {

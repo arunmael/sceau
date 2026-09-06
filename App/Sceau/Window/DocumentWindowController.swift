@@ -137,17 +137,11 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         // Punkten — bei sehr grossen Fotos auf die Zeichenfläche
         // herunterskaliert, damit ein 4000px-Foto nicht weit über den
         // sichtbaren Rand hinausragt.
-        let artboard = store.document.artboard.size
-        let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
-        let maxDimension = max(pixelSize.width, pixelSize.height)
-        let fitLimit = max(artboard.width, artboard.height)
-        let scale = maxDimension > fitLimit && maxDimension > 0 ? fitLimit / maxDimension : 1
-        let size = CGSize(width: pixelSize.width * scale, height: pixelSize.height * scale)
-        let frame = CGRect(
-            x: artboard.width / 2 - size.width / 2,
-            y: artboard.height / 2 - size.height / 2,
-            width: size.width,
-            height: size.height
+        let artboard = store.document.artboard
+        let frame = ImagePlacement.frame(
+            forPixelSize: CGSize(width: cgImage.width, height: cgImage.height),
+            centeredAt: CGPoint(x: artboard.size.width / 2, y: artboard.size.height / 2),
+            maxDimension: max(artboard.size.width, artboard.size.height)
         )
 
         let node = Node(

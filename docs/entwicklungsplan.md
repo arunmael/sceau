@@ -56,12 +56,20 @@ Seit macOS 27 „Golden Gate" unterstützt Sidecar per „Direct Touch" die dire
 - Pfad schliessen/offen lassen
 
 ### 5.2b Freihandzeichnen (nachträglich ergänzt)
-- Freihand-Werkzeug mit drei Stiftarten (Pinsel, Eimer, Filzstift), die sich in
-  Strichbreite, Weichheit/Deckkraft und Glättung des gezogenen Pfads
-  unterscheiden — kein eigener Kalligrafie-Editor mit Druckkurven o.ä., nur
-  feste, gut abgestimmte Voreinstellungen
-- Ergebnis ist ein normaler Pfad-Knoten und damit sofort mit allen anderen
-  Werkzeugen (Verzerren, boolesche Operationen, Stil) weiterverwendbar
+- Freihand-Werkzeug mit drei Stiftarten, die sich in Zugverhalten und
+  Ergebnis unterscheiden:
+  - Pinsel/Filzstift: unterscheiden sich in Strichbreite, Weichheit/Deckkraft
+    und Glättung des gezogenen Pfads — kein eigener Kalligrafie-Editor mit
+    Druckkurven o.ä., nur feste, gut abgestimmte Voreinstellungen
+  - Eimer: kein Strich, sondern ein Klick — füllt die Fläche, die von
+    bestehenden Konturen um den Klickpunkt umschlossen wird (wie "Live Paint"
+    in Vektorprogrammen), siehe ``BucketFill``. Rein geometrisch über die
+    vorhandenen booleschen Operationen bestimmt, **kein** pixelbasiertes
+    Flood-Fill — das Ergebnis bleibt eine echte, editierbare Kontur. Ohne
+    umschliessende Kontur unter dem Zeiger passiert nichts.
+- Das Ergebnis von Pinsel/Filzstift ist ein normaler Pfad-Knoten und damit
+  sofort mit allen anderen Werkzeugen (Verzerren, boolesche Operationen,
+  Stil) weiterverwendbar; das Ergebnis des Eimers ebenso.
 - Nachträglich ergänzt gegenüber der ursprünglichen Entscheidung unten in
   Abschnitt 6 — auf ausdrücklichen Wunsch, siehe Projektnotizen
 
