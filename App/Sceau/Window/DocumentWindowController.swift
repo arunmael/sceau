@@ -1,5 +1,4 @@
 import AppKit
-import ImageIO
 import SwiftUI
 import SceauCore
 
@@ -127,29 +126,20 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         panel.allowedContentTypes = [.png, .jpeg]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url,
-              let data = try? Data(contentsOf: url),
-              let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
 
         // Auf der Zeichenfläche zentriert eingesetzt, in Originalgrösse in
         // Punkten — bei sehr grossen Fotos auf die Zeichenfläche
         // herunterskaliert, damit ein 4000px-Foto nicht weit über den
-        // sichtbaren Rand hinausragt.
+        // sichtbaren Rand hinausragt. Dieselbe Einbettung wie beim Ablegen
+        // einer Bilddatei per Drag & Drop — siehe ``ImageInsertion``.
         let artboard = store.document.artboard
-        let frame = ImagePlacement.frame(
-            forPixelSize: CGSize(width: cgImage.width, height: cgImage.height),
+        ImageInsertion.insert(
+            from: url,
             centeredAt: CGPoint(x: artboard.size.width / 2, y: artboard.size.height / 2),
+            into: store,
             maxDimension: max(artboard.size.width, artboard.size.height)
         )
-
-        let node = Node(
-            name: url.deletingPathExtension().lastPathComponent,
-            content: .image(ImageSpec(data: data, frame: frame))
-        )
-        store.apply("Bild einfügen") { $0.appendOnTop(node) }
-        store.selection = [node.id]
     }
 
     @objc private func chooseShapeTool(_ sender: NSMenuItem) {
@@ -414,7 +404,7 @@ extension DocumentWindowController: NSToolbarDelegate {
         action: Selector
     ) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: identifier)
-        item.label = title
+        item.label = ""
         item.paletteLabel = title
         item.toolTip = title
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
@@ -431,7 +421,7 @@ extension DocumentWindowController: NSToolbarDelegate {
         menu: NSMenu
     ) -> NSToolbarItem {
         let item = NSMenuToolbarItem(itemIdentifier: identifier)
-        item.label = title
+        item.label = ""
         item.paletteLabel = title
         item.toolTip = title
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)

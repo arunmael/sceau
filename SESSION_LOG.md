@@ -161,3 +161,80 @@ ausserhalb von `swift test` und wurde zusätzlich per `xcodebuild` verifiziert.
    aufgegriffen)
 Ob der Remote-Branch `feature/mvp-umsetzung` gelöscht werden soll, ist
 weiterhin unbeantwortet.
+
+## Sitzung: missing.md vollständig umgesetzt + Problems.md behoben
+
+Auf ausdrücklichen Wunsch ("Nein setz alles aus missing.md um") wurde die
+vollständige Wunschliste umgesetzt statt eines reinen Stabilitäts-Durchgangs.
+Zwei Punkte (Texturen, Freihand-Mehrpinsel) standen im Widerspruch zum
+dokumentierten Nicht-Ziel in `docs/entwicklungsplan.md` Abschnitt 6 — nach
+Rückfrage vom Nutzer bestätigt: "Trotzdem umsetzen, Plan aktualisieren".
+Der Plan wurde entsprechend revidiert (Abschnitt 5.2b/5.4, Abschnitt 6 mit
+`> Revidiert:`-Hinweis).
+
+### Umgesetzt
+- **Vier neue Formvorlagen**: Herz, Pfeil, Sprechblase, Kreuz
+  (`ShapeGeometry.swift`, `ShapeSpec.swift`, ins bestehende Formen-Menü
+  eingehängt wie zuvor Squircle). Commit `fb4d752`.
+- **Texturen**: Musterfüllung mit einer Bildkachel (`Paint.pattern`,
+  Kachelgrösse + Rotation, Sicherheits-Deckel gegen zu viele Kacheln bei
+  winzigem `tileSize`). Commit `299000e`.
+- **Effekte**: Schlagschatten (`Style.shadow`), inkl. der Vorzeichen-Falle
+  bei `CGContext.setShadow` (Offset ist im unveränderten Default-User-Space
+  gemeint, nicht in der aktuellen — bereits gespiegelten — CTM; beim Export
+  muss `dy` deshalb negiert werden, im Live-Canvas über `CALayer.shadowOffset`
+  nicht). Commit `5dbbb82`.
+- **Freihand-Werkzeug mit drei Stiften** (Filzstift/Pinsel/Eimer) —
+  Douglas-Peucker-Vereinfachung (iterativ, nach Stack-Overflow-Absturz bei
+  20 000 Punkten von rekursiv auf iterativ mit explizitem Stack umgebaut)
+  + Catmull-Rom-zu-Bézier. In den Zeichenstift-Knopf als Menü eingehängt
+  (genau sieben Werkzeugleisten-Elemente bleiben gewahrt). Commit `c89ab84`.
+  **Der Eimer war hier zunächst nur eine 24pt-dicke Freihand-Linie, kein
+  echtes Füllwerkzeug** — siehe Problems.md-Fix unten.
+- **Bild einfügen**: Statt eigener Freistellung (Vision-Framework) nutzt
+  Sceau bewusst das bereits vom Nutzer freigestellte PNG — "Motiv kopieren"
+  in Vorschau/Fotos/Finder, dann `Datei > Bild einfügen …`. Neuer `.image`-
+  Content-Fall im Dokumentmodell, generisch überall eingehängt
+  (Rendering, Export, Treffertest, Transformationen). Dabei proaktiv einen
+  stillen Datenverlust in `NodeTransform.distorted` verhindert: Bilder
+  dürfen beim Verzerren nicht zu einem leeren Pfad kollabieren, sondern
+  behalten ihre Pixel und bekommen nur einen neuen Rahmen (Hüllrahmen der
+  Zielecken). Commit `ab9f86b`.
+- **Zurückgestellt** (auf Nutzerwunsch): Pixelmator-artige, automatisch
+  einklappende Werkzeug-Seitenleiste. Nicht begonnen.
+- Bereits vorher vorhanden und daher nicht erneut umgesetzt: ⌘Z/⌘Y visuell,
+  Text-zu-Pfad, freies Verzerren samt Werkzeug, proportionale Skalierung mit
+  Wahltaste, Cursor-Wechsel beim Verzerren.
+
+### Problems.md behoben (Folgesitzung)
+- **"Man kann nicht drag n drop machen"**: Es gab keinerlei
+  Datei-Drag&Drop auf die Zeichenfläche. `CanvasView` registriert jetzt für
+  `.fileURL`; eine hereingezogene PNG/JPEG-Datei wird als Bildknoten
+  eingebettet, zentriert auf dem Ablagepunkt. Die Rahmenberechnung wurde
+  dafür aus `DocumentWindowController.insertImage` in eine gemeinsame reine
+  Funktion `ImagePlacement.frame(...)` gezogen (test-first,
+  `ImagePlacementTests`, 3 Fälle).
+- **"Eimer sollte alles innerhalb einer Abgrenzung einfärben"**: Der Eimer
+  zeichnete bis dahin nur eine dicke Linie. Jetzt füllt ein Klick die von
+  bestehenden Konturen umschlossene Fläche — Schnittmenge aller Konturen,
+  die den Klickpunkt enthalten, abzüglich aller, die ihn nicht enthalten
+  (neues `BucketFill.swift`, aufbauend auf der vorhandenen
+  `BooleanOperator`-Maschinerie, bewusst kein pixelbasiertes Flood-Fill).
+  Ohne umschliessende Kontur passiert nichts. Test-first, `BucketFillTests`,
+  6 Fälle inkl. Überlapp/Schnittmenge, Alleinbereich/Differenz und
+  evenOdd-Loch am Klickpunkt.
+  Commit `6d69495`.
+
+### Verifikation
+Jeder Commit dieser Sitzung: `swift test` (247 → 256, alle grün) +
+`xcodegen generate && xcodebuild -project Sceau.xcodeproj -scheme Sceau
+-configuration Debug build` (BUILD SUCCEEDED). Kein GUI-Ende-zu-Ende-Test
+mit echter Maussteuerung (siehe Standing-Constraint oben) — Eimer und
+Drag&Drop sind daher nur durch die Kernlogik-Tests und den erfolgreichen
+App-Build abgedeckt, nicht durch tatsächliches Klicken/Ziehen in der
+laufenden App.
+
+### Sonstiges
+- Aktueller Stand als Release-Build nach `/Applications/Sceau.app` kopiert
+  (`ditto`, `BUILT_PRODUCTS_DIR` über `xcodebuild -showBuildSettings`
+  ermittelt).

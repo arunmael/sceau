@@ -20,9 +20,9 @@ public enum BucketFill {
     /// wird (siehe `CanvasView.hits(node:point:)`).
     public struct Boundary {
         public var path: VectorPath
-        public var fillRule: CGPathFillRule
+        public var fillRule: FillRule
 
-        public init(path: VectorPath, fillRule: CGPathFillRule) {
+        public init(path: VectorPath, fillRule: FillRule) {
             self.path = path
             self.fillRule = fillRule
         }
@@ -43,7 +43,7 @@ public enum BucketFill {
         tolerance: CGFloat = Flattener.defaultTolerance
     ) throws -> VectorPath {
         let usable = boundaries.filter { !$0.path.isEmpty }
-        let containing = usable.filter { $0.path.cgPath.contains(point, using: $0.fillRule) }
+        let containing = usable.filter { $0.path.cgPath.contains(point, using: $0.fillRule.cgFillRule) }
 
         guard let first = containing.first else {
             throw Error.noEnclosingBoundary
@@ -55,7 +55,7 @@ public enum BucketFill {
                 cell = try BooleanOperator.apply(.intersect, subject: cell, clip: boundary.path, tolerance: tolerance)
             }
 
-            let notContaining = usable.filter { !$0.path.cgPath.contains(point, using: $0.fillRule) }
+            let notContaining = usable.filter { !$0.path.cgPath.contains(point, using: $0.fillRule.cgFillRule) }
             for boundary in notContaining {
                 // Kein Überlapp mit der bisherigen Zelle: nichts abzuschneiden.
                 // Ein Aufruf würde hier nur unnötig mit `.emptyInput` scheitern.

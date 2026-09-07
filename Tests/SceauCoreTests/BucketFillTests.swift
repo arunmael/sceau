@@ -7,7 +7,7 @@ import Testing
 struct BucketFillTests {
 
     private func rectangle(_ frame: CGRect) -> BucketFill.Boundary {
-        BucketFill.Boundary(path: ShapeGeometry.path(for: .rectangle(frame: frame, cornerRadius: 0)), fillRule: .winding)
+        BucketFill.Boundary(path: ShapeGeometry.path(for: .rectangle(frame: frame, cornerRadius: 0)), fillRule: .nonZero)
     }
 
     @Test("Eine einzelne Kontur um den Punkt liefert genau diese Kontur")

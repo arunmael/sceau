@@ -134,7 +134,7 @@ public enum DocumentRenderer {
             context.saveGState()
             context.addPath(path.cgPath)
             context.setFillColor(color.cgColor)
-            context.fillPath(using: cgFillRule(style.fillRule))
+            context.fillPath(using: style.fillRule.cgFillRule)
             context.restoreGState()
 
         case let .linearGradient(gradient):
@@ -174,7 +174,7 @@ public enum DocumentRenderer {
 
         context.saveGState()
         context.addPath(path.cgPath)
-        context.clip(using: cgFillRule(fillRule))
+        context.clip(using: fillRule.cgFillRule)
 
         // Im gedrehten Koordinatensystem gearbeitet, damit die Kachelung auch
         // nach einer Drehung lückenlos bleibt: Der Klip-Pfad selbst dreht sich
@@ -280,7 +280,7 @@ public enum DocumentRenderer {
 
         context.saveGState()
         context.addPath(path.cgPath)
-        context.clip(using: cgFillRule(fillRule))
+        context.clip(using: fillRule.cgFillRule)
 
         if radial {
             let dx = end.x - start.x
@@ -337,13 +337,6 @@ public enum DocumentRenderer {
     }
 
     // MARK: - Umsetzung Modell -> CoreGraphics
-
-    private static func cgFillRule(_ rule: FillRule) -> CGPathFillRule {
-        switch rule {
-        case .nonZero: return .winding
-        case .evenOdd: return .evenOdd
-        }
-    }
 
     private static func cgLineCap(_ cap: StrokeCap) -> CGLineCap {
         switch cap {

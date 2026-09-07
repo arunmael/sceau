@@ -190,6 +190,16 @@ public struct Stroke: Equatable, Sendable, Codable {
 public enum FillRule: String, Equatable, Sendable, Codable, CaseIterable {
     case nonZero
     case evenOdd
+
+    /// Dieselbe Regel als CoreGraphics-Wert — einzige Umwandlungsstelle im
+    /// ganzen Projekt, damit Rendering, Treffertest und Eimer-Füllung nie
+    /// auseinanderlaufen können.
+    public var cgFillRule: CGPathFillRule {
+        switch self {
+        case .nonZero: return .winding
+        case .evenOdd: return .evenOdd
+        }
+    }
 }
 
 /// Ein einfacher Schlagschatten. Bewusst **nur** dieser eine Effekt — kein

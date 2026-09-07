@@ -1,5 +1,4 @@
 import AppKit
-import ImageIO
 import SceauCore
 
 /// Die acht Griffpunkte um eine Auswahl.
@@ -650,8 +649,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         guard !path.isEmpty else { return false }
         let cgPath = path.cgPath
 
-        let rule: CGPathFillRule = node.style.fillRule == .evenOdd ? .evenOdd : .winding
-        if node.style.fill != .none, cgPath.contains(point, using: rule) {
+        if node.style.fill != .none, cgPath.contains(point, using: node.style.fillRule.cgFillRule) {
             return true
         }
         // Nicht gefüllte Formen müssen über ihre Kontur greifbar bleiben, sonst
@@ -700,37 +698,22 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         guard !urls.isEmpty else { return false }
 
         let dropPoint = documentPoint(from: convert(sender.draggingLocation, from: nil))
+        let artboard = store.document.artboard
         // Bei mehreren fallengelassenen Dateien versetzt, damit sie nicht
-        // alle exakt übereinander landen.
+        // alle exakt übereinander landen. Dieselbe Einbettung wie „Bild
+        // einfügen …" (``DocumentWindowController/insertImage(_:)``), nur
+        // zentriert auf dem Ablagepunkt statt auf der Zeichenfläche — siehe
+        // ``ImageInsertion``.
         for (offset, url) in urls.enumerated() {
             let center = CGPoint(x: dropPoint.x + CGFloat(offset) * 24, y: dropPoint.y + CGFloat(offset) * 24)
-            insertDroppedImage(from: url, centeredAt: center)
+            ImageInsertion.insert(
+                from: url,
+                centeredAt: center,
+                into: store,
+                maxDimension: max(artboard.size.width, artboard.size.height)
+            )
         }
         return true
-    }
-
-    /// Dieselbe Bild-Einbettung wie „Bild einfügen …"
-    /// (``DocumentWindowController/insertImage(_:)``), nur zentriert auf dem
-    /// Ablagepunkt statt auf der Zeichenfläche — siehe ``ImagePlacement``.
-    private func insertDroppedImage(from url: URL, centeredAt center: CGPoint) {
-        guard let data = try? Data(contentsOf: url),
-              let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { return }
-
-        let artboard = store.document.artboard
-        let frame = ImagePlacement.frame(
-            forPixelSize: CGSize(width: cgImage.width, height: cgImage.height),
-            centeredAt: center,
-            maxDimension: max(artboard.size.width, artboard.size.height)
-        )
-
-        let node = Node(
-            name: url.deletingPathExtension().lastPathComponent,
-            content: .image(ImageSpec(data: data, frame: frame))
-        )
-        store.apply("Bild einfügen") { $0.appendOnTop(node) }
-        store.selection = [node.id]
     }
 
     // MARK: - Maus
@@ -1203,10 +1186,7 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         let boundaries = store.document.nodes
             .filter { $0.isVisible && !$0.isLocked }
             .map { node in
-                BucketFill.Boundary(
-                    path: NodeGeometry.path(for: node),
-                    fillRule: node.style.fillRule == .evenOdd ? .evenOdd : .winding
-                )
+                BucketFill.Boundary(path: NodeGeometry.path(for: node), fillRule: node.style.fillRule)
             }
 
         guard let region = try? BucketFill.region(at: point, boundaries: boundaries) else { return }
