@@ -142,6 +142,12 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         )
     }
 
+    /// „Leinwandgrösse ändern …" — siehe ``CanvasSizeDialog``.
+    @objc func changeCanvasSize(_ sender: Any?) {
+        guard let window else { return }
+        CanvasSizeDialog.present(for: store, in: window)
+    }
+
     @objc private func chooseShapeTool(_ sender: NSMenuItem) {
         guard let tool = ToolKind(rawValue: sender.representedObject as? String ?? "") else { return }
         store.activeTool = tool

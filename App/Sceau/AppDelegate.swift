@@ -81,6 +81,7 @@ enum MainMenuBuilder {
         // entgegen, das z. B. über "Motiv kopieren" in Vorschau/Fotos schon
         // freigestellt wurde — deshalb ein Einfügen-Befehl, kein Freistellen-Werkzeug.
         menu.addItem(item("Bild einfügen …", #selector(DocumentWindowController.insertImage(_:)), "i", modifiers: [.command, .shift]))
+        menu.addItem(item("Leinwandgrösse ändern …", #selector(DocumentWindowController.changeCanvasSize(_:)), "c", modifiers: [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Schliessen", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Sichern", #selector(NSDocument.save(_:)), "s"))
