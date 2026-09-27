@@ -46,19 +46,21 @@ private struct ArtboardInspector: View {
             ColorPicker("Hintergrund", selection: backgroundBinding, supportsOpacity: true)
         }
 
-        Section("Vorgabegrössen") {
-            ForEach(ArtboardPreset.all) { preset in
-                Button {
-                    apply(preset)
-                } label: {
-                    HStack {
-                        Text(preset.name)
-                        Spacer()
-                        Text("\(Int(preset.size.width))×\(Int(preset.size.height))")
-                            .foregroundStyle(.secondary)
+        ForEach(ArtboardPreset.groups) { group in
+            Section(group.title) {
+                ForEach(group.presets) { preset in
+                    Button {
+                        apply(preset)
+                    } label: {
+                        HStack {
+                            Text(preset.name)
+                            Spacer()
+                            Text("\(Int(preset.size.width))×\(Int(preset.size.height))")
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
     }

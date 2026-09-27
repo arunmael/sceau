@@ -38,7 +38,34 @@ public struct ArtboardPreset: Equatable, Sendable, Identifiable {
     public static let socialProfile = ArtboardPreset(name: "Profilbild", size: CGSize(width: 512, height: 512))
     public static let square = ArtboardPreset(name: "Quadrat 512", size: CGSize(width: 512, height: 512))
 
-    public static let all: [ArtboardPreset] = [.appIcon, .socialProfile, .favicon, .square]
+    /// Vorgaben nach Verwendungszweck gruppiert, in Anzeigereihenfolge.
+    ///
+    /// Papierformate in Pixeln bei 300 dpi — der üblichen Druckauflösung.
+    public static let groups: [ArtboardPresetGroup] = [
+        ArtboardPresetGroup(title: "Icons", presets: [.appIcon, .socialProfile, .favicon, .square]),
+        ArtboardPresetGroup(title: "Social Media", presets: [
+            ArtboardPreset(name: "Quadrat", size: CGSize(width: 1080, height: 1080)),
+            ArtboardPreset(name: "Beitrag hoch", size: CGSize(width: 1080, height: 1350)),
+            ArtboardPreset(name: "Story", size: CGSize(width: 1080, height: 1920)),
+            ArtboardPreset(name: "Full HD", size: CGSize(width: 1920, height: 1080))
+        ]),
+        ArtboardPresetGroup(title: "Papier (300 dpi)", presets: [
+            ArtboardPreset(name: "A4 hoch", size: CGSize(width: 2480, height: 3508)),
+            ArtboardPreset(name: "A4 quer", size: CGSize(width: 3508, height: 2480)),
+            ArtboardPreset(name: "A5 hoch", size: CGSize(width: 1748, height: 2480)),
+            ArtboardPreset(name: "A5 quer", size: CGSize(width: 2480, height: 1748)),
+            ArtboardPreset(name: "A3 hoch", size: CGSize(width: 3508, height: 4961))
+        ])
+    ]
+
+    public static let all: [ArtboardPreset] = groups.flatMap(\.presets)
+}
+
+/// Eine benannte Gruppe von ``ArtboardPreset``s.
+public struct ArtboardPresetGroup: Equatable, Sendable, Identifiable {
+    public var id: String { title }
+    public let title: String
+    public let presets: [ArtboardPreset]
 }
 
 /// Das vollständige Dokumentmodell — reine Daten, ohne AppKit.
