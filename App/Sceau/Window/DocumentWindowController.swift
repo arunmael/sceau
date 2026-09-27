@@ -285,7 +285,9 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
 
     // MARK: - Export
 
-    @objc private func performExport(_ sender: NSMenuItem) {
+    /// Wird von der Werkzeugleiste und von „Ablage › Exportieren“ benutzt;
+    /// das Format steht als Schlüssel in `representedObject`.
+    @objc func performExport(_ sender: NSMenuItem) {
         guard let window, let key = sender.representedObject as? String else { return }
 
         switch key {

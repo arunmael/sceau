@@ -83,6 +83,8 @@ enum MainMenuBuilder {
         menu.addItem(item("Bild einfügen …", #selector(DocumentWindowController.insertImage(_:)), "i", modifiers: [.command, .shift]))
         menu.addItem(item("Leinwandgrösse ändern …", #selector(DocumentWindowController.changeCanvasSize(_:)), "c", modifiers: [.command, .option]))
         menu.addItem(.separator())
+        menu.addItem(makeSubmenu(exportMenu(), title: "Exportieren"))
+        menu.addItem(.separator())
         menu.addItem(item("Schliessen", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Sichern", #selector(NSDocument.save(_:)), "s"))
         menu.addItem(item("Sichern unter …", #selector(NSDocument.saveAs(_:)), "s", modifiers: [.command, .shift]))
@@ -92,6 +94,22 @@ enum MainMenuBuilder {
         menu.addItem(item("Alle Versionen durchsuchen …", #selector(NSDocument.browseVersions(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Zurück zur gesicherten Version", #selector(NSDocument.revertToSaved(_:))))
+        return menu
+    }
+
+    /// Dieselben Einträge wie der Export-Knopf in der Werkzeugleiste — hier
+    /// zusätzlich, weil man den Export auf dem Mac unter „Ablage“ sucht und
+    /// der Knopf nur ein unbeschriftetes Symbol ist.
+    private static func exportMenu() -> NSMenu {
+        let menu = NSMenu()
+        let export = #selector(DocumentWindowController.performExport(_:))
+        menu.addItem(item("Als SVG …", export, "e", modifiers: [.command, .shift], representedObject: "svg"))
+        menu.addItem(item("Als PDF …", export, representedObject: "pdf"))
+        menu.addItem(.separator())
+        menu.addItem(item("Als PNG (1×) …", export, representedObject: "png1"))
+        menu.addItem(item("Als PNG (2×) …", export, representedObject: "png2"))
+        menu.addItem(.separator())
+        menu.addItem(item("Icon-Satz (16 – 1024 px) …", export, representedObject: "iconset"))
         return menu
     }
 
