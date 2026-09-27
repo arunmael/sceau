@@ -77,6 +77,8 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
     private let contentLayer = CALayer()
     /// Liegt darüber: Auswahlrahmen, Griffe, Aufziehvorschau.
     private let overlayLayer = CALayer()
+    /// Dekodierte Bilder, über die Neubauten des Ebenenbaums hinweg.
+    private let decodedImages = DecodedImageCache()
 
     /// Bildschirmposition des Dokumentursprungs (0,0), in View-Koordinaten.
     private var documentOrigin: CGPoint = .zero
@@ -390,12 +392,14 @@ final class CanvasView: NSView, NSUserInterfaceValidations {
         nodesLayer.position = .zero
         nodesLayer.masksToBounds = false
 
+        let pixelsPerPoint = zoom * backingScaleFactor
         for node in store.document.nodes {
-            if let layer = CanvasRenderer.makeLayer(for: node) {
+            if let layer = CanvasRenderer.makeLayer(for: node, images: decodedImages, pixelsPerPoint: pixelsPerPoint) {
                 nodesLayer.addSublayer(layer)
             }
         }
         contentLayer.addSublayer(nodesLayer)
+        decodedImages.purgeUnused()
     }
 
     /// Zeichnet das Raster innerhalb der Zeichenfläche.

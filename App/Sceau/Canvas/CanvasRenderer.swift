@@ -1,5 +1,4 @@
 import AppKit
-import ImageIO
 import SceauCore
 
 extension RGBAColor {
@@ -26,18 +25,28 @@ extension RGBAColor {
 /// (Logos und Icons, also Dutzende statt Tausende Objekte), ist der Neubau
 /// ohnehin nicht messbar. Implizite Animationen werden dabei abgeschaltet,
 /// sonst würde jede Änderung nachwabern.
+///
+/// Einzige Ausnahme sind Bilder: Sie neu zu dekodieren wäre sehr wohl
+/// messbar, deshalb kommen sie aus einem ``DecodedImageCache``, der über
+/// die Neubauten hinweg lebt.
 enum CanvasRenderer {
 
     /// Erzeugt die Ebene für einen Knoten, oder `nil`, wenn er nichts sichtbar
     /// beiträgt.
-    static func makeLayer(for node: Node) -> CALayer? {
+    ///
+    /// - Parameters:
+    ///   - images: Cache für dekodierte Bilder.
+    ///   - pixelsPerPoint: Bildschirmpixel pro Dokumentpunkt (Zoom mal
+    ///     Retina-Faktor) — bestimmt, wie fein Bilder dekodiert werden.
+    @MainActor
+    static func makeLayer(for node: Node, images: DecodedImageCache, pixelsPerPoint: CGFloat) -> CALayer? {
         guard node.isVisible, node.style.opacity > 0 else { return nil }
 
         if case let .group(children) = node.content {
             let container = CALayer()
             container.opacity = Float(node.style.opacity)
             for child in children {
-                if let childLayer = makeLayer(for: child) {
+                if let childLayer = makeLayer(for: child, images: images, pixelsPerPoint: pixelsPerPoint) {
                     container.addSublayer(childLayer)
                 }
             }
@@ -45,7 +54,7 @@ enum CanvasRenderer {
         }
 
         if case let .image(spec) = node.content {
-            return makeImageLayer(spec, rotation: node.rotation, opacity: node.style.opacity)
+            return makeImageLayer(spec, rotation: node.rotation, opacity: node.style.opacity, images: images, pixelsPerPoint: pixelsPerPoint)
         }
 
         let path = NodeGeometry.path(for: node)
@@ -88,12 +97,23 @@ enum CanvasRenderer {
 
     // MARK: - Bild
 
-    /// Dieselbe ImageIO-Dekodierung wie beim Export (kein `NSImage` nötig,
-    /// `CALayer.contents` nimmt ein `CGImage` direkt entgegen).
-    private static func makeImageLayer(_ spec: ImageSpec, rotation: CGFloat, opacity: CGFloat) -> CALayer? {
+    /// Dekodiert über ImageIO wie beim Export (kein `NSImage` nötig,
+    /// `CALayer.contents` nimmt ein `CGImage` direkt entgegen) — aber nur so
+    /// fein, wie das Bild gerade auf dem Bildschirm erscheint.
+    @MainActor
+    private static func makeImageLayer(
+        _ spec: ImageSpec,
+        rotation: CGFloat,
+        opacity: CGFloat,
+        images: DecodedImageCache,
+        pixelsPerPoint: CGFloat
+    ) -> CALayer? {
+        let displaySize = CGSize(
+            width: spec.frame.width * pixelsPerPoint,
+            height: spec.frame.height * pixelsPerPoint
+        )
         guard spec.frame.width > 0, spec.frame.height > 0,
-              let source = CGImageSourceCreateWithData(spec.data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+              let image = images.image(for: spec.data, displaySize: displaySize)
         else { return nil }
 
         let layer = CALayer()
