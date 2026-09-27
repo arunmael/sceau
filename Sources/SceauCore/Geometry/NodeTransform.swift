@@ -139,9 +139,16 @@ public enum NodeTransform {
 
         case var .text(spec):
             spec.origin = map(spec.origin)
-            // Schriftgrösse folgt der Höhe — eine Schrift getrennt in Breite und
-            // Höhe zu verzerren, gehört nicht zum Funktionsumfang.
-            spec.fontSize *= abs(scaleY)
+            // Die Schrift (samt Abständen) folgt der Höhe, die horizontale
+            // Skalierung nimmt den Rest der Breite auf — so landet der Text
+            // wie ein Bild genau im gezogenen Rahmen und bleibt dabei Text.
+            let verticalScale = abs(scaleY)
+            spec.fontSize *= verticalScale
+            spec.tracking *= verticalScale
+            spec.wordSpacing *= verticalScale
+            if verticalScale > 0 {
+                spec.horizontalScale *= abs(scaleX) / verticalScale
+            }
             result.content = .text(spec)
 
         case var .image(spec):

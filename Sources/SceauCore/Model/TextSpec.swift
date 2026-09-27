@@ -16,6 +16,11 @@ public struct TextSpec: Equatable, Sendable, Codable {
     public var wordSpacing: CGFloat
     /// Startpunkt der Grundlinie des ersten Zeichens.
     public var origin: CGPoint
+    /// Horizontale Skalierung, 1 = unverzerrt. Streckt oder staucht den Text
+    /// vom Startpunkt aus in der Breite — entsteht beim unproportionalen
+    /// Ziehen an den Griffen, damit sich Text wie ein Bild verziehen lässt
+    /// und trotzdem editierbarer Text bleibt.
+    public var horizontalScale: CGFloat
 
     public init(
         string: String,
@@ -23,7 +28,8 @@ public struct TextSpec: Equatable, Sendable, Codable {
         fontSize: CGFloat = 72,
         tracking: CGFloat = 0,
         wordSpacing: CGFloat = 0,
-        origin: CGPoint = .zero
+        origin: CGPoint = .zero,
+        horizontalScale: CGFloat = 1
     ) {
         self.string = string
         self.fontName = fontName
@@ -31,5 +37,19 @@ public struct TextSpec: Equatable, Sendable, Codable {
         self.tracking = tracking
         self.wordSpacing = wordSpacing
         self.origin = origin
+        self.horizontalScale = horizontalScale
+    }
+
+    /// Eigene Dekodierung nur, damit Dateien aus der Zeit vor
+    /// ``horizontalScale`` weiterhin öffnen — dort fehlt der Wert und gilt als 1.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        string = try container.decode(String.self, forKey: .string)
+        fontName = try container.decode(String.self, forKey: .fontName)
+        fontSize = try container.decode(CGFloat.self, forKey: .fontSize)
+        tracking = try container.decode(CGFloat.self, forKey: .tracking)
+        wordSpacing = try container.decode(CGFloat.self, forKey: .wordSpacing)
+        origin = try container.decode(CGPoint.self, forKey: .origin)
+        horizontalScale = try container.decodeIfPresent(CGFloat.self, forKey: .horizontalScale) ?? 1
     }
 }

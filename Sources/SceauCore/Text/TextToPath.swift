@@ -28,9 +28,11 @@ public enum TextToPath {
             // (gx, gy) landet bei (gx + origin.x + penPosition, origin.y − gy).
             // Die Übergabe an CTFontCreatePathForGlyph ist sauberer als eine
             // nachträgliche Transformation des fertigen Pfades.
+            // Die horizontale Skalierung streckt Glyph und Schreibposition
+            // gleichermassen, vom Startpunkt aus.
             var transform = CGAffineTransform(
-                a: 1, b: 0, c: 0, d: -1,
-                tx: spec.origin.x + entry.penPosition, ty: spec.origin.y
+                a: spec.horizontalScale, b: 0, c: 0, d: -1,
+                tx: spec.origin.x + entry.penPosition * spec.horizontalScale, ty: spec.origin.y
             )
 
             guard let cgPath = CTFontCreatePathForGlyph(font, entry.glyph, &transform) else {
@@ -46,7 +48,7 @@ public enum TextToPath {
     public static func advance(for spec: TextSpec) -> CGFloat {
         guard !spec.string.isEmpty else { return 0 }
         let font = FontCatalog.makeFont(named: spec.fontName, size: spec.fontSize)
-        return glyphLayout(for: spec, font: font).totalAdvance
+        return glyphLayout(for: spec, font: font).totalAdvance * spec.horizontalScale
     }
 
     // MARK: - Layout

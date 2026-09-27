@@ -446,6 +446,9 @@ private struct TextSection: View {
             LabeledContent("Grösse") { TextField("Grösse", value: fontSizeBinding, format: .number).frame(width: 60) }
             LabeledContent("Zeichenabstand") { TextField("Zeichenabstand", value: trackingBinding, format: .number).frame(width: 60) }
             LabeledContent("Wortabstand") { TextField("Wortabstand", value: wordSpacingBinding, format: .number).frame(width: 60) }
+            // Entsteht beim unproportionalen Ziehen an den Griffen; hier lässt
+            // sich die Verzerrung genau einstellen oder mit 100 zurücksetzen.
+            LabeledContent("Breite %") { TextField("Breite %", value: horizontalScaleBinding, format: .number).frame(width: 60) }
         }
     }
 
@@ -491,6 +494,13 @@ private struct TextSection: View {
         Binding(
             get: { Double(spec.tracking) },
             set: { newValue in update("Zeichenabstand ändern") { $0.tracking = CGFloat(newValue) } }
+        )
+    }
+
+    private var horizontalScaleBinding: Binding<Double> {
+        Binding(
+            get: { (Double(spec.horizontalScale) * 1000).rounded() / 10 },
+            set: { newValue in update("Textbreite ändern") { $0.horizontalScale = max(0.01, CGFloat(newValue) / 100) } }
         )
     }
 
