@@ -26,6 +26,12 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         super.init(window: window)
 
         window.contentViewController = makeSplitViewController()
+        // Die Startgrösse gehört ans Fenster, nicht als `preferredContentSize`
+        // an den Split-View-Controller: AppKit hält die Fenstergrösse sonst
+        // dauerhaft auf diesem Wert fest, und das Fenster lässt sich gar nicht
+        // mehr aufziehen. Das Zuweisen des Inhalts oben lässt das Fenster auf
+        // die Summe der Mindestbreiten zusammenfallen — daher erst danach.
+        window.setContentSize(NSSize(width: 1280, height: 820))
         setUpToolbar()
         // Merkt sich Grösse und Position über Sitzungen hinweg.
         window.setFrameAutosaveName("SceauDocumentWindow")
@@ -79,11 +85,6 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         split.addSplitViewItem(layersItem)
         split.addSplitViewItem(canvasItem)
         split.addSplitViewItem(inspectorItem)
-
-        // AppKit richtet die Fenstergrösse nach der bevorzugten Grösse des
-        // Inhalts-Controllers. Ohne diese Angabe fällt das Fenster auf die
-        // Summe der Mindestbreiten zusammen und startet unnötig eng.
-        split.preferredContentSize = NSSize(width: 1280, height: 820)
         return split
     }
 
