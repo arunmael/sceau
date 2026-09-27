@@ -66,7 +66,7 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         let canvas = CanvasView(store: store)
         canvasView = canvas
         let canvasController = NSViewController()
-        canvasController.view = canvas
+        canvasController.view = makeCanvasContainer(around: canvas)
         let canvasItem = NSSplitViewItem(viewController: canvasController)
         canvasItem.minimumThickness = 400
 
@@ -85,6 +85,32 @@ final class DocumentWindowController: NSWindowController, NSUserInterfaceValidat
         // Summe der Mindestbreiten zusammen und startet unnötig eng.
         split.preferredContentSize = NSSize(width: 1280, height: 820)
         return split
+    }
+
+    /// Legt die Verlaufspille unten mittig über die Zeichenfläche.
+    ///
+    /// Die `CanvasView` bleibt unverändert die eigentliche Ansicht — sie ist
+    /// weiterhin der erste Empfänger von Tastatureingaben und Ziel der
+    /// Zoom-Befehle. Der Container ist reine Schichtung, damit die Pille
+    /// schweben kann, ohne dass die Zeichenfläche Platz abgeben muss.
+    private func makeCanvasContainer(around canvas: CanvasView) -> NSView {
+        let container = NSView()
+        canvas.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(canvas)
+
+        let historyBar = UndoHistoryBar(store: store)
+        container.addSubview(historyBar)
+
+        NSLayoutConstraint.activate([
+            canvas.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            canvas.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            canvas.topAnchor.constraint(equalTo: container.topAnchor),
+            canvas.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+            historyBar.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            historyBar.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16)
+        ])
+        return container
     }
 
     private func setUpToolbar() {

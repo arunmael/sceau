@@ -165,7 +165,23 @@ public final class DocumentStore {
     public var snapsEnabled = true
 
     /// Der Undo-Manager des zugehörigen `NSDocument`.
-    public weak var undoManager: UndoManager?
+    public weak var undoManager: UndoManager? {
+        didSet { observeUndoManager() }
+    }
+
+    /// Anzahl der noch angewendeten beziehungsweise bereits widerrufenen
+    /// Schritte — die beiden Hälften der sichtbaren Verlaufsachse.
+    ///
+    /// `UndoManager` legt seine Stapeltiefen nicht offen; diese Werte folgen
+    /// deshalb seinen Benachrichtigungen. Beobachtet wird gezielt nur *dieser*
+    /// Manager: Eine globale Beobachtung zählte bei mehreren offenen Fenstern
+    /// fremde Schritte mit.
+    public private(set) var undoDepth: Int = 0
+    public private(set) var redoDepth: Int = 0
+
+    /// Die laufenden Beobachtungen des aktuellen Undo-Managers.
+    @ObservationIgnored
+    private var undoObservations: [NSObjectProtocol] = []
 
     /// Wird nach jeder Änderung aufgerufen, damit das `NSDocument` sich als
     /// geändert markieren und den Autosave anstossen kann.
@@ -279,6 +295,86 @@ public final class DocumentStore {
     private func pruneSelection() {
         let existing = Set(document.nodes.flatMap { $0.flattenedIDs })
         selection.formIntersection(existing)
+    }
+
+    // MARK: - Sichtbarer Verlauf
+
+    /// Hängt die Zähler an den aktuellen Undo-Manager.
+    private func observeUndoManager() {
+        let center = NotificationCenter.default
+        undoObservations.forEach(center.removeObserver)
+        undoObservations.removeAll()
+        undoDepth = 0
+        redoDepth = 0
+
+        guard let undoManager else { return }
+
+        // `queue: nil` mit Absicht: So kommt die Meldung synchron auf dem
+        // postenden Thread (dem Hauptthread) an. Über eine Warteschlange wäre
+        // der Zählerstand erst im nächsten Durchlauf der Ereignisschleife
+        // aktuell — ein Zug über die Verlaufsachse liefe dann auf einem
+        // veralteten Ausgangspunkt und spränge zu weit.
+        undoObservations.append(center.addObserver(
+            forName: .NSUndoManagerDidCloseUndoGroup,
+            object: undoManager,
+            queue: nil
+        ) { [weak self, weak undoManager] _ in
+            MainActor.assumeIsolated {
+                guard let self, let undoManager,
+                      !undoManager.isUndoing, !undoManager.isRedoing
+                else { return }
+                // Beim Widerrufen registriert der Store die Gegenrichtung neu
+                // und schliesst dabei eine Gruppe — das ist kein neuer Schritt
+                // und wird oben ausgeschlossen.
+                self.undoDepth += 1
+                self.redoDepth = 0
+            }
+        })
+
+        undoObservations.append(center.addObserver(
+            forName: .NSUndoManagerDidUndoChange,
+            object: undoManager,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.undoDepth = max(0, self.undoDepth - 1)
+                self.redoDepth += 1
+            }
+        })
+
+        undoObservations.append(center.addObserver(
+            forName: .NSUndoManagerDidRedoChange,
+            object: undoManager,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.undoDepth += 1
+                self.redoDepth = max(0, self.redoDepth - 1)
+            }
+        })
+    }
+
+    /// Springt auf die Verlaufstiefe `target` — die Anzahl Schritte, die danach
+    /// noch widerrufbar sein sollen.
+    ///
+    /// Bricht ab, sobald der Manager nicht mehr weiterkommt: Ein Ziel, das er
+    /// nicht erreichen kann (etwa nach einem geleerten Stapel), darf keine
+    /// Endlosschleife ergeben.
+    public func jump(toDepth target: Int) {
+        let goal = min(max(0, target), undoDepth + redoDepth)
+
+        while undoDepth > goal, undoManager?.canUndo == true {
+            let before = undoDepth
+            undoManager?.undo()
+            guard undoDepth < before else { break }
+        }
+        while undoDepth < goal, undoManager?.canRedo == true {
+            let before = undoDepth
+            undoManager?.redo()
+            guard undoDepth > before else { break }
+        }
     }
 
     // MARK: - Auswahl
