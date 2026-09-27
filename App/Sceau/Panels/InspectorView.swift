@@ -406,6 +406,11 @@ private struct SingleNodeInspector: View {
 
 // MARK: - Textknoten
 
+/// Einmal beim ersten Gebrauch ermittelt — die Abfrage bei jedem Neuzeichnen
+/// des Inspektors zu wiederholen wäre unnötig. Neu installierte Schriften
+/// erscheinen deshalb erst nach einem Neustart.
+private let installedFontFamilies = FontCatalog.families()
+
 private struct TextSection: View {
     let store: DocumentStore
     let node: Node
@@ -420,7 +425,24 @@ private struct TextSection: View {
         }
 
         Section("Schrift") {
-            LabeledContent("Schrift") { TextField("Schrift", text: fontNameBinding) }
+            Picker("Schrift", selection: familyBinding) {
+                if currentFamily == nil {
+                    // Nicht installierte Schrift aus einer fremden Datei:
+                    // sichtbar lassen statt stillschweigend zu ersetzen.
+                    Text("\(spec.fontName) (fehlt)").tag("")
+                    Divider()
+                }
+                ForEach(installedFontFamilies, id: \.self) { family in
+                    Text(family).tag(family)
+                }
+            }
+            if let currentFamily {
+                Picker("Schnitt", selection: fontNameBinding) {
+                    ForEach(FontCatalog.styles(ofFamily: currentFamily)) { style in
+                        Text(style.name).tag(style.postScriptName)
+                    }
+                }
+            }
             LabeledContent("Grösse") { TextField("Grösse", value: fontSizeBinding, format: .number).frame(width: 60) }
             LabeledContent("Zeichenabstand") { TextField("Zeichenabstand", value: trackingBinding, format: .number).frame(width: 60) }
             LabeledContent("Wortabstand") { TextField("Wortabstand", value: wordSpacingBinding, format: .number).frame(width: 60) }
@@ -440,8 +462,22 @@ private struct TextSection: View {
         Binding(get: { spec.string }, set: { newValue in update("Text ändern") { $0.string = newValue } })
     }
 
+    private var currentFamily: String? {
+        FontCatalog.family(ofFontNamed: spec.fontName)
+    }
+
+    private var familyBinding: Binding<String> {
+        Binding(
+            get: { currentFamily ?? "" },
+            set: { family in
+                guard let name = FontCatalog.fontName(inFamily: family, closestTo: spec.fontName) else { return }
+                update("Schrift ändern") { $0.fontName = name }
+            }
+        )
+    }
+
     private var fontNameBinding: Binding<String> {
-        Binding(get: { spec.fontName }, set: { newValue in update("Schrift ändern") { $0.fontName = newValue } })
+        Binding(get: { spec.fontName }, set: { newValue in update("Schriftschnitt ändern") { $0.fontName = newValue } })
     }
 
     private var fontSizeBinding: Binding<Double> {

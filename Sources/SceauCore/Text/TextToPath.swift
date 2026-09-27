@@ -18,7 +18,7 @@ public enum TextToPath {
     public static func path(for spec: TextSpec) -> VectorPath {
         guard !spec.string.isEmpty else { return VectorPath() }
 
-        let font = CTFontCreateWithName(spec.fontName as CFString, spec.fontSize, nil)
+        let font = FontCatalog.makeFont(named: spec.fontName, size: spec.fontSize)
         let layout = glyphLayout(for: spec, font: font)
 
         var resultSubpaths: [Subpath] = []
@@ -45,7 +45,7 @@ public enum TextToPath {
     /// Der Vorschub des gesetzten Textes, ohne ihn in Pfade umzuwandeln.
     public static func advance(for spec: TextSpec) -> CGFloat {
         guard !spec.string.isEmpty else { return 0 }
-        let font = CTFontCreateWithName(spec.fontName as CFString, spec.fontSize, nil)
+        let font = FontCatalog.makeFont(named: spec.fontName, size: spec.fontSize)
         return glyphLayout(for: spec, font: font).totalAdvance
     }
 
