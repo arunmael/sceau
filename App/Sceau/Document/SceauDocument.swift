@@ -45,13 +45,19 @@ final class SceauDocument: NSDocument {
         connectStore()
     }
 
+    // Die folgenden Klassen-Eigenschaften sind `nonisolated`: AppKit fragt sie
+    // beim Sichern auf einem Hintergrund-Thread ab. Ohne die Markierung
+    // gehörten sie (wie ganz `NSDocument`) zum Main Actor, und die
+    // Laufzeitprüfung von Swift 6 beendete die App bei ⌘S mit SIGTRAP. Sie
+    // liefern nur Konstanten, der Zugriff von jedem Thread ist also sicher.
+
     /// Autosave in place — Voraussetzung dafür, dass macOS automatisch
     /// Versionen anlegt und offene Dokumente nach einem Absturz wiederherstellt.
-    override class var autosavesInPlace: Bool { true }
+    nonisolated override class var autosavesInPlace: Bool { true }
 
     /// Zusätzlich beim Wechsel in den Hintergrund sichern, damit zwischen zwei
     /// automatischen Sicherungen möglichst wenig verloren gehen kann.
-    override class var preservesVersions: Bool { true }
+    nonisolated override class var preservesVersions: Bool { true }
 
     private func connectStore() {
         store.undoManager = undoManager
@@ -114,7 +120,7 @@ final class SceauDocument: NSDocument {
     /// Bleibt bewusst bei `false`: Der Dokumentzustand hängt am Hauptthread
     /// (siehe ``read(from:ofType:)``). Ein Umstellen auf nebenläufiges Lesen
     /// müsste diese Annahme mit auflösen.
-    override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
+    nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
         false
     }
 
