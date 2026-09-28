@@ -115,13 +115,7 @@ public enum DocumentRenderer {
             context.rotate(by: rotation)
             context.translateBy(x: -center.x, y: -center.y)
         }
-        // `CGContext.draw(_:in:)` legt die oberste Bildzeile immer an das
-        // grössere y des Zielrechtecks — im hier bereits gespiegelten
-        // Kontext (y nach unten) also nach unten. Lokal um den Rahmen
-        // zurückgespiegelt, damit das Bild aufrecht steht.
-        context.translateBy(x: 0, y: spec.frame.minY + spec.frame.maxY)
-        context.scaleBy(x: 1, y: -1)
-        context.draw(image, in: spec.frame)
+        drawUpright(image, in: spec.frame, context: context)
 
         if style.shadow != nil {
             context.endTransparencyLayer()
@@ -206,10 +200,24 @@ public enum DocumentRenderer {
                     width: fill.tileSize.width,
                     height: fill.tileSize.height
                 )
-                context.draw(image, in: tileRect)
+                drawUpright(image, in: tileRect, context: context)
             }
         }
 
+        context.restoreGState()
+    }
+
+    /// Zeichnet ein Bild aufrecht in einen Kontext mit Dokumentkoordinaten.
+    ///
+    /// `CGContext.draw(_:in:)` legt die oberste Bildzeile immer an das
+    /// grössere y des Zielrechtecks — im gespiegelten Kontext (y nach unten)
+    /// also nach unten. Lokal um das Rechteck zurückgespiegelt, damit das
+    /// Bild aufrecht steht.
+    private static func drawUpright(_ image: CGImage, in rect: CGRect, context: CGContext) {
+        context.saveGState()
+        context.translateBy(x: 0, y: rect.minY + rect.maxY)
+        context.scaleBy(x: 1, y: -1)
+        context.draw(image, in: rect)
         context.restoreGState()
     }
 
@@ -240,6 +248,12 @@ public enum DocumentRenderer {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
+
+        // Wie beim Export in Dokumentkoordinaten (y nach unten) zeichnen —
+        // sonst stünden Kacheln hier anders herum und drehten sich in die
+        // Gegenrichtung als im PNG/PDF.
+        context.translateBy(x: 0, y: CGFloat(context.height))
+        context.scaleBy(x: 1, y: -1)
 
         // Der Rechteckpfad selbst dient nur als (nicht sichtbar wirkender)
         // "Klip" über die volle Bitmap — die eigentliche Kontur maskiert der

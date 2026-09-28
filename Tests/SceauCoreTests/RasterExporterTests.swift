@@ -139,6 +139,56 @@ struct RasterExporterTests {
         #expect(bottom.r < 50)
     }
 
+    /// Rechteck über die volle 100×100-Fläche, gefüllt mit einer einzigen
+    /// Musterkachel (rot oben, blau unten) in genau Rechteckgrösse.
+    private func patternDocument() throws -> Document {
+        var document = Document(artboard: Artboard(size: CGSize(width: 100, height: 100), background: .clear))
+        var style = Style()
+        style.fill = .pattern(PatternFill(imageData: try redTopBlueBottomPNG(), tileSize: CGSize(width: 100, height: 100)))
+        style.stroke = nil
+        document.nodes = [
+            Node(
+                name: "Muster",
+                style: style,
+                content: .shape(.rectangle(frame: CGRect(x: 0, y: 0, width: 100, height: 100), cornerRadius: 0))
+            )
+        ]
+        return document
+    }
+
+    @Test("Musterkacheln stehen im Export aufrecht, nicht auf dem Kopf")
+    func patternTilesAreNotUpsideDown() throws {
+        let data = try RasterExporter.pngData(try patternDocument(), pixelWidth: 100, pixelHeight: 100)
+        let buffer = try pixels(of: data, width: 100, height: 100)
+
+        let top = pixel(buffer, x: 50, y: 10, width: 100)
+        #expect(top.r > 200)
+        #expect(top.b < 50)
+
+        let bottom = pixel(buffer, x: 50, y: 90, width: 100)
+        #expect(bottom.b > 200)
+        #expect(bottom.r < 50)
+    }
+
+    @Test("Live-Musterbild (Canvas) steht aufrecht, wie der Export")
+    func patternImageIsUpright() throws {
+        let fill = PatternFill(imageData: try redTopBlueBottomPNG(), tileSize: CGSize(width: 100, height: 100))
+        let image = try #require(DocumentRenderer.patternImage(for: fill, bounds: CGRect(x: 0, y: 0, width: 100, height: 100)))
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        let buffer = try pixels(of: data as Data, width: 100, height: 100)
+
+        let top = pixel(buffer, x: 50, y: 10, width: 100)
+        #expect(top.r > 200)
+        #expect(top.b < 50)
+
+        let bottom = pixel(buffer, x: 50, y: 90, width: 100)
+        #expect(bottom.b > 200)
+        #expect(bottom.r < 50)
+    }
+
     @Test("PNG hat exakt die angeforderte Pixelgrösse")
     func pngHasRequestedSize() throws {
         let document = Document.empty(preset: .favicon)
