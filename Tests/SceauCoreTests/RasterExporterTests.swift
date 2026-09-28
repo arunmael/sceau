@@ -87,6 +87,58 @@ struct RasterExporterTests {
         #expect(bottom.a == 0)
     }
 
+    /// PNG-Bilddaten, deren obere Hälfte rot und untere Hälfte blau ist
+    /// (Speicherzeile 0 = oberste Bildzeile, wie bei jedem Bitmap-Format).
+    private func redTopBlueBottomPNG() throws -> Data {
+        let width = 4, height = 4
+        var buffer = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                let isTop = y < height / 2
+                buffer[offset] = isTop ? 255 : 0
+                buffer[offset + 1] = 0
+                buffer[offset + 2] = isTop ? 0 : 255
+                buffer[offset + 3] = 255
+            }
+        }
+        let provider = try #require(CGDataProvider(data: Data(buffer) as CFData))
+        let image = try #require(CGImage(
+            width: width, height: height,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        return data as Data
+    }
+
+    @Test("Eingebettete Bilder stehen im Export aufrecht, nicht auf dem Kopf")
+    func embeddedImageIsNotUpsideDown() throws {
+        var document = Document(artboard: Artboard(size: CGSize(width: 100, height: 100), background: .clear))
+        document.nodes = [
+            Node(
+                name: "Foto",
+                style: Style(),
+                content: .image(ImageSpec(data: try redTopBlueBottomPNG(), frame: CGRect(x: 0, y: 0, width: 100, height: 100)))
+            )
+        ]
+        let data = try RasterExporter.pngData(document, pixelWidth: 100, pixelHeight: 100)
+        let buffer = try pixels(of: data, width: 100, height: 100)
+
+        let top = pixel(buffer, x: 50, y: 10, width: 100)
+        #expect(top.r > 200)
+        #expect(top.b < 50)
+
+        let bottom = pixel(buffer, x: 50, y: 90, width: 100)
+        #expect(bottom.b > 200)
+        #expect(bottom.r < 50)
+    }
+
     @Test("PNG hat exakt die angeforderte Pixelgrösse")
     func pngHasRequestedSize() throws {
         let document = Document.empty(preset: .favicon)

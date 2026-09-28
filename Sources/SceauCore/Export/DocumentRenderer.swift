@@ -115,6 +115,12 @@ public enum DocumentRenderer {
             context.rotate(by: rotation)
             context.translateBy(x: -center.x, y: -center.y)
         }
+        // `CGContext.draw(_:in:)` legt die oberste Bildzeile immer an das
+        // grössere y des Zielrechtecks — im hier bereits gespiegelten
+        // Kontext (y nach unten) also nach unten. Lokal um den Rahmen
+        // zurückgespiegelt, damit das Bild aufrecht steht.
+        context.translateBy(x: 0, y: spec.frame.minY + spec.frame.maxY)
+        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: spec.frame)
 
         if style.shadow != nil {
